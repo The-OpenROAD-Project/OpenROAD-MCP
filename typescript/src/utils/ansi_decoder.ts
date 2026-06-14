@@ -1,15 +1,18 @@
 import stripAnsi from "strip-ansi";
 
 const ESCAPE_SEQUENCES: Record<string, string> = {
-  // Terminal modes
-  "\\x1b\\[?\\d*h": "Enable terminal mode",
-  "\\x1b\\[?\\d*l": "Disable terminal mode",
+  // Private mode sequences (DECSET/DECRST). Specific codes are listed first so
+  // they match before the generic private-mode catch-all below.
   "\\x1b\\[\\?2004h": "Enable bracketed paste mode",
   "\\x1b\\[\\?2004l": "Disable bracketed paste mode",
   "\\x1b\\[\\?1049h": "Enable alternative screen buffer",
   "\\x1b\\[\\?1049l": "Disable alternative screen buffer",
   "\\x1b\\[\\?25h": "Show cursor",
   "\\x1b\\[\\?25l": "Hide cursor",
+  // Generic private-mode set/reset. The `?` is escaped so `[?` is mandatory,
+  // preventing single-char escapes like \x1bh / \x1bl from matching here.
+  "\\x1b\\[\\?\\d*h": "Enable terminal mode",
+  "\\x1b\\[\\?\\d*l": "Disable terminal mode",
   // Cursor movement
   "\\x1b\\[\\d*A": "Move cursor up",
   "\\x1b\\[\\d*B": "Move cursor down",
@@ -53,16 +56,30 @@ const ESCAPE_SEQUENCES: Record<string, string> = {
   "\\x1b\\[47m": "White background",
 };
 
-const ESCAPE_PATTERN = /\x1b\[[0-9;?]*[a-zA-Z]/g;
+// Matches the common ANSI escape sequence families so that non-CSI sequences
+// (OSC, charset designation, single/two-char escapes) are detected in every
+// mode rather than leaking through as raw bytes. Order matters: longer/anchored
+// alternatives come first so they win at a given match position.
+//   1. OSC:            ESC ] ... (BEL | ST)
+//   2. CSI:            ESC [ params final
+//   3. Charset/desig.: ESC ( | ) | # <char>
+//   4. Single/two-char: ESC <char>
+const ESCAPE_PATTERN =
+  /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[a-zA-Z]|\x1b[()#][0-9A-Za-z]|\x1b[=>NMcDEH78]/g;
+
+const VALID_MODES = ["remove", "annotate", "preserve", "decode"];
+
+// Pre-compile the escape-sequence patterns once at module load instead of
+// allocating ~45 RegExp objects on every decodeEscapeSequence() call.
+const COMPILED_SEQUENCES: Array<[RegExp, string]> = Object.entries(ESCAPE_SEQUENCES).map(
+  ([pattern, description]) => [new RegExp(`^${pattern}`), description],
+);
 
 export class ANSIDecoder {
   static decodeEscapeSequence(sequence: string): string {
-    for (const [pattern, description] of Object.entries(ESCAPE_SEQUENCES)) {
-      if (new RegExp(`^${pattern}`).test(sequence)) return description;
+    for (const [pattern, description] of COMPILED_SEQUENCES) {
+      if (pattern.test(sequence)) return description;
     }
-
-    if (sequence.includes("?2004h")) return "Enable bracketed paste mode";
-    if (sequence.includes("?2004l")) return "Disable bracketed paste mode";
 
     if (sequence.startsWith("\x1b[")) {
       if (sequence.includes("?")) {
@@ -83,6 +100,10 @@ export class ANSIDecoder {
   }
 
   static translateOutput(text: string, mode: string = "annotate"): string {
+    if (!VALID_MODES.includes(mode)) {
+      throw new Error(`Unknown mode: ${mode}`);
+    }
+
     if (!text) return text;
 
     const sequences = text.match(ESCAPE_PATTERN) ?? [];
@@ -96,7 +117,7 @@ export class ANSIDecoder {
       for (const seq of new Set(sequences)) {
         result = result.replaceAll(seq, `[${ANSIDecoder.decodeEscapeSequence(seq)}]`);
       }
-      return result.replace(/\r\n/g, "\n").replace(/\r/g, "");
+      return result.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     }
 
     if (mode === "preserve") {
