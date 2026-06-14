@@ -37,6 +37,14 @@ export class CircularBuffer {
         this._totalSize -= old.length;
       }
 
+      // A single chunk that still exceeds maxSize is truncated to the last
+      // maxSize bytes so the buffer never permanently exceeds its capacity.
+      if (this._totalSize > this.maxSize) {
+        const chunk = this._chunks[0]!;
+        this._chunks[0] = chunk.slice(chunk.length - this.maxSize);
+        this._totalSize = this.maxSize;
+      }
+
       this._dataAvailable = true;
       const pending = this._resolvers.splice(0);
       for (const resolve of pending) resolve(true);

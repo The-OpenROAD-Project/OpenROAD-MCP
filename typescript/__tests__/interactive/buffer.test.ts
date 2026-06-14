@@ -50,7 +50,7 @@ describe("CircularBuffer", () => {
       expect(chunks).toEqual(["67890", "ABCDE"]);
     });
 
-    it("keeps a single oversized chunk as the only entry", async () => {
+    it("truncates a single oversized chunk to the last maxSize characters", async () => {
       const buf = new CircularBuffer(10);
       await buf.append("12345");
       await buf.append("67890");
@@ -58,7 +58,8 @@ describe("CircularBuffer", () => {
 
       const chunks = await buf.drainAll();
       expect(chunks).toHaveLength(1);
-      expect(chunks[0]).toBe("LARGE_CHUNK_EXCEEDS");
+      expect(chunks[0]).toBe("NK_EXCEEDS");
+      expect(buf.size).toBe(0);
     });
   });
 
@@ -81,12 +82,13 @@ describe("CircularBuffer", () => {
       expect(buf.size).toBe(0);
     });
 
-    it("very small buffer keeps the newest chunk even if oversized", async () => {
+    it("very small buffer truncates oversized chunk to maxSize", async () => {
       const buf = new CircularBuffer(1);
       await buf.append("ab");
       const chunks = await buf.drainAll();
       expect(chunks).toHaveLength(1);
-      expect(chunks[0]).toBe("ab");
+      expect(chunks[0]).toBe("b");
+      expect(buf.size).toBe(0);
     });
   });
 
