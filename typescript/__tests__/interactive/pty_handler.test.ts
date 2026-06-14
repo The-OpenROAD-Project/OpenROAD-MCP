@@ -268,9 +268,36 @@ describe("PtyHandler", () => {
         return originalWaitForExit(ms);
       });
 
+      // Simulate kernel acknowledging SIGKILL so the subsequent waitForExit() resolves
+      mockPty.kill.mockImplementation((signal: string) => {
+        if (signal === "SIGKILL") setTimeout(() => mockPty._exit(137), 0);
+      });
+
       await handler.terminateProcess(false);
       expect(mockPty.kill).toHaveBeenCalledWith("SIGTERM");
       expect(mockPty.kill).toHaveBeenCalledWith("SIGKILL");
+    });
+
+    it("waitForExit callers receive 137 when cleanup follows SIGKILL-forced termination so the exit listener is not disposed before the exit fires", async () => {
+      await handler.createSession(["echo"]);
+
+      const originalWaitForExit = handler.waitForExit.bind(handler);
+      vi.spyOn(handler, "waitForExit").mockImplementation(async (ms) => {
+        if (ms === 5000) return null;
+        return originalWaitForExit(ms);
+      });
+
+      mockPty.kill.mockImplementation((signal: string) => {
+        if (signal === "SIGKILL") setTimeout(() => mockPty._exit(137), 0);
+      });
+
+      const waiter = handler.waitForExit(10000);
+      await handler.terminateProcess(false);
+      // terminateProcess() must have already awaited SIGKILL so _exitCode = 137;
+      // cleanup() disposing _exitDisposable here cannot race the exit listener
+      await handler.cleanup();
+
+      expect(await waiter).toBe(137);
     });
 
     it("does not throw when SIGTERM kill raises (process already dead)", async () => {

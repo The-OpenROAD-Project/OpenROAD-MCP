@@ -163,6 +163,11 @@ export class PtyHandler {
       } catch {
         // ignored
       }
+      // Await SIGKILL acknowledgement before returning so onExit fires and
+      // records _exitCode; without this, cleanup() disposes _exitDisposable
+      // while _exitCode is still null and waitForExit() callers get null
+      // instead of 137.
+      await this.waitForExit();
     }
   }
 
