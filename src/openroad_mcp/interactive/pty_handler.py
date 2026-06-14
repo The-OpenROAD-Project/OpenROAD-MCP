@@ -35,12 +35,17 @@ class PTYHandler:
 
         executable = command[0]
 
-        absolute_executable = os.path.basename(executable) if os.path.isabs(executable) else executable
+        if os.path.isabs(executable):
+            raise PTYError(
+                f"Command '{executable}' must not be an absolute path. "
+                f"Use the binary name only (e.g. 'openroad'). "
+                f"To add this command, set OPENROAD_ALLOWED_COMMANDS environment variable."
+            )
 
-        if absolute_executable not in settings.ALLOWED_COMMANDS:
+        if executable not in settings.ALLOWED_COMMANDS:
             allowed_list = ", ".join(settings.ALLOWED_COMMANDS)
             raise PTYError(
-                f"Command '{absolute_executable}' is not in the allowed commands list. "
+                f"Command '{executable}' is not in the allowed commands list. "
                 f"Allowed commands: {allowed_list}. "
                 f"To add this command, set OPENROAD_ALLOWED_COMMANDS environment variable."
             )
