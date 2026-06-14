@@ -25,7 +25,7 @@ from .models import (
     SessionError,
     SessionTerminatedError,
 )
-from .pty_handler import PTYHandler, create_pty_handler
+from .pty_handler import PTYHandler
 
 logger = get_logger("interactive_session")
 
@@ -78,7 +78,7 @@ class InteractiveSession:
         self._last_memory_check = time.time()
 
         # Core components
-        self.pty = create_pty_handler()
+        self.pty = PTYHandler()
         self.output_buffer = CircularBuffer(max_size=buffer_size)
         self.input_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=settings.SESSION_QUEUE_SIZE)
 

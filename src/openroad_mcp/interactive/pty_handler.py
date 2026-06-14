@@ -5,7 +5,6 @@ import errno
 import fcntl
 import os
 import pty
-import sys
 import termios
 
 from ..config.constants import LARGE_IO_THRESHOLD
@@ -288,98 +287,3 @@ class PTYHandler:
         logger.debug("PTY handler cleanup completed")
 
 
-class MacOSPTYHandler(PTYHandler):
-    """PTYHandler subclass for macOS.
-
-    Two macOS-specific problems combine to lose output from fast-exiting processes:
-
-    1. Buffer discard: when all slave-fd holders close, macOS discards the PTY
-       master's read buffer. Fix: dup the slave fd as a keepalive before the parent
-       closes it (via _before_slave_close) so the buffer survives child exit.
-
-    2. tcdrain deadlock: bash -c flushes stdout via tcdrain() before exiting.
-       tcdrain() blocks until the master fd is drained by the parent, but
-       wait_for_exit() only calls process.wait() without reading — deadlocking.
-       Fix: _drain_loop task continuously reads from master_fd so tcdrain()
-       always completes and bash exits normally.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._output_buffer: bytearray = bytearray()
-        self._slave_keepalive_fd: int | None = None
-        self._reader_task: asyncio.Task | None = None
-
-    async def create_session(self, *args, **kwargs) -> None:
-        self._output_buffer.clear()
-        await self._stop_reader()
-        if self._slave_keepalive_fd is not None:
-            try:
-                os.close(self._slave_keepalive_fd)
-            except OSError:
-                pass
-            self._slave_keepalive_fd = None
-        await super().create_session(*args, **kwargs)
-        self._reader_task = asyncio.create_task(self._drain_loop())
-
-    def _before_slave_close(self, slave_fd: int) -> None:
-        # Dup before the parent closes so macOS never sees "no slave holders",
-        # preventing premature master buffer discard on child exit.
-        try:
-            self._slave_keepalive_fd = os.dup(slave_fd)
-        except OSError:
-            pass
-
-    async def _drain_loop(self) -> None:
-        while self.master_fd is not None:
-            try:
-                data = os.read(self.master_fd, 65536)
-                if data:
-                    self._output_buffer.extend(data)
-                else:
-                    break
-            except BlockingIOError:
-                await asyncio.sleep(0.001)
-            except OSError:
-                break
-
-    async def _stop_reader(self) -> None:
-        if self._reader_task is not None:
-            self._reader_task.cancel()
-            try:
-                await self._reader_task
-            except asyncio.CancelledError:
-                pass
-            self._reader_task = None
-
-    async def wait_for_exit(self, timeout: float | None = None) -> int | None:
-        result = await super().wait_for_exit(timeout=timeout)
-        if result is not None:
-            # Yield to _drain_loop so it can collect any output committed to the
-            # master buffer in the final moments before the process exited.
-            await asyncio.sleep(0.05)
-        return result
-
-    async def read_output(self, size: int | None = None) -> bytes | None:  # noqa: ARG002
-        if self._output_buffer:
-            data = bytes(self._output_buffer)
-            self._output_buffer.clear()
-            return data
-        return None
-
-    async def cleanup(self) -> None:
-        await self._stop_reader()
-        if self._slave_keepalive_fd is not None:
-            try:
-                os.close(self._slave_keepalive_fd)
-            except OSError:
-                pass
-            self._slave_keepalive_fd = None
-        await super().cleanup()
-
-
-def create_pty_handler() -> PTYHandler:
-    """Return the platform-appropriate PTYHandler instance."""
-    if sys.platform == "darwin":
-        return MacOSPTYHandler()
-    return PTYHandler()

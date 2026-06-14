@@ -8,7 +8,7 @@ import pytest
 
 from openroad_mcp.config.settings import settings
 from openroad_mcp.interactive.models import PTYError
-from openroad_mcp.interactive.pty_handler import create_pty_handler
+from openroad_mcp.interactive.pty_handler import PTYHandler
 
 
 def can_create_pty() -> bool:
@@ -40,7 +40,7 @@ class TestPTYIntegration:
     @pytest.fixture
     async def pty_handler(self):
         """Create and cleanup PTY handler."""
-        handler = create_pty_handler()
+        handler = PTYHandler()
         try:
             yield handler
         finally:
