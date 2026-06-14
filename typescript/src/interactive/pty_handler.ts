@@ -52,6 +52,11 @@ export class PtyHandler {
           `Command argument ${i} contains redirection operators which are not allowed: ${JSON.stringify(arg)}`,
         );
       }
+      if (arg.split(/[/\\]/).some((part) => part === "..")) {
+        throw new PTYError(
+          `Command argument ${i} contains path traversal sequence which is not allowed: ${JSON.stringify(arg)}`,
+        );
+      }
     }
   }
 

@@ -191,6 +191,24 @@ describe("command injection prevention", () => {
       makeHandler().validateCommand(["openroad", ">sensitive_file.txt"]),
     ).toThrow(PTYError);
   });
+
+  it("blocks path traversal in script argument", () => {
+    expect(() =>
+      makeHandler().validateCommand(["openroad", "-script", "../../etc/malicious.tcl"]),
+    ).toThrow("contains path traversal");
+    expect(() =>
+      makeHandler().validateCommand(["openroad", "-script", "../sibling.tcl"]),
+    ).toThrow("contains path traversal");
+    expect(() =>
+      makeHandler().validateCommand(["openroad", ".."]),
+    ).toThrow("contains path traversal");
+  });
+
+  it("passes for legitimate relative and nested paths without traversal", () => {
+    makeHandler().validateCommand(["openroad", "scripts/design.tcl"]);
+    makeHandler().validateCommand(["openroad", "-script", "design.tcl"]);
+    makeHandler().validateCommand(["openroad", "file..name.tcl"]);
+  });
 });
 
 describe("environment variable configuration", () => {
