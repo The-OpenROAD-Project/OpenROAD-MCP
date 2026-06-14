@@ -1,5 +1,5 @@
 import { ANSIDecoder } from "../utils/ansi_decoder.js";
-import { settings as defaultSettings } from "../config/settings.js";
+import { getSettings } from "../config/settings.js";
 import type { Settings } from "../config/settings.js";
 import { SessionState } from "../core/models.js";
 import type { InteractiveExecResult, InteractiveSessionInfo } from "../core/models.js";
@@ -42,7 +42,7 @@ export class InteractiveSession {
   private _isShutdown = false;
   private _writerTask: Promise<void> | null = null;
 
-  constructor(sessionId: string, bufferSize?: number, private readonly _settings: Settings = defaultSettings) {
+  constructor(sessionId: string, bufferSize?: number, private readonly _settings: Settings = getSettings()) {
     this.sessionId = sessionId;
     this.createdAt = new Date();
     this._state = SessionState.CREATING;

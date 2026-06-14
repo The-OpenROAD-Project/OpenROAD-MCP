@@ -1,7 +1,7 @@
 import path from "node:path";
 import { spawn } from "node-pty";
 import type { IPty, IDisposable } from "node-pty";
-import { settings as defaultSettings } from "../config/settings.js";
+import { getSettings } from "../config/settings.js";
 import type { Settings } from "../config/settings.js";
 import { PTYError } from "./models.js";
 
@@ -13,7 +13,7 @@ export class PtyHandler {
   private _exitResolvers: Array<(code: number | null) => void> = [];
   private _exitCode: number | null = null;
 
-  constructor(private readonly _settings: Settings = defaultSettings) {}
+  constructor(private readonly _settings: Settings = getSettings()) {}
 
   validateCommand(command: string[]): void {
     if (!this._settings.ENABLE_COMMAND_VALIDATION) return;

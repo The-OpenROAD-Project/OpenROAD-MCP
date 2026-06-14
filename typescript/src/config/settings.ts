@@ -2,8 +2,17 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 
-function parseBool(val: string): boolean {
-  return ["true", "1", "yes"].includes(val.toLowerCase());
+const TRUTHY_VALUES = ["true", "1", "yes"];
+const FALSY_VALUES = ["false", "0", "no"];
+
+function parseBool(envKey: string, val: string): boolean {
+  const normalized = val.trim().toLowerCase();
+  if (TRUTHY_VALUES.includes(normalized)) return true;
+  if (FALSY_VALUES.includes(normalized)) return false;
+  throw new Error(
+    `Invalid value for ${envKey}: ${val}. Expected a boolean ` +
+      `(${TRUTHY_VALUES.join("/")} or ${FALSY_VALUES.join("/")}).`,
+  );
 }
 
 function parseFloat_(envKey: string, val: string): number {
@@ -118,16 +127,36 @@ export class Settings {
 
     const enableValidationEnv = process.env["OPENROAD_ENABLE_COMMAND_VALIDATION"];
     if (enableValidationEnv !== undefined) {
-      overrides.ENABLE_COMMAND_VALIDATION = parseBool(enableValidationEnv);
+      overrides.ENABLE_COMMAND_VALIDATION = parseBool("OPENROAD_ENABLE_COMMAND_VALIDATION", enableValidationEnv);
     }
 
     const whitelistEnabledEnv = process.env["OPENROAD_WHITELIST_ENABLED"];
     if (whitelistEnabledEnv !== undefined) {
-      overrides.WHITELIST_ENABLED = parseBool(whitelistEnabledEnv);
+      overrides.WHITELIST_ENABLED = parseBool("OPENROAD_WHITELIST_ENABLED", whitelistEnabledEnv);
     }
 
     return new Settings(overrides);
   }
 }
 
-export const settings = Settings.fromEnv();
+let _cachedSettings: Settings | null = null;
+
+/**
+ * Build and cache settings from the environment. Wraps any parsing error with
+ * context so a misconfigured env var produces an actionable startup message
+ * instead of a raw error thrown from module initialisation.
+ */
+export function initSettings(): Settings {
+  try {
+    _cachedSettings = Settings.fromEnv();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Failed to initialise settings from environment variables: ${msg}`);
+  }
+  return _cachedSettings;
+}
+
+/** Return the cached settings, initialising them lazily on first access. */
+export function getSettings(): Settings {
+  return _cachedSettings ?? initSettings();
+}
