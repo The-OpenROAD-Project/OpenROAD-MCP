@@ -15,6 +15,11 @@ export class PtyHandler {
 
   constructor(private readonly _settings: Settings = getSettings()) {}
 
+  /** PID of the underlying PTY process, or null if no process is active. */
+  get pid(): number | null {
+    return this._ptyProcess?.pid ?? null;
+  }
+
   validateCommand(command: string[]): void {
     if (!this._settings.ENABLE_COMMAND_VALIDATION) return;
 
