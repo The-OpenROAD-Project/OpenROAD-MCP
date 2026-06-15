@@ -598,4 +598,99 @@ describe("InteractiveSession", () => {
       expect(result.error).toMatch(/Design not found: top/);
     });
   });
+
+  describe("activity, history, and metrics", () => {
+    beforeEach(async () => {
+      (mockPty.isProcessAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      await session.start();
+    });
+
+    it("updates lastActivity and grows history on sendCommand", async () => {
+      const before = session.lastActivity.getTime();
+      await session.sendCommand("report_wns");
+
+      expect(session.commandHistory).toHaveLength(1);
+      expect(session.commandHistory[0]!.command).toBe("report_wns");
+      expect(session.commandHistory[0]!.command_number).toBe(1);
+      expect(typeof session.commandHistory[0]!.execution_start).toBe("number");
+      expect(session.totalCommandsExecuted).toBe(1);
+      expect(session.lastActivity.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it("trims the recorded command text", async () => {
+      await session.sendCommand("  puts hi  ");
+      expect(session.commandHistory[0]!.command).toBe("puts hi");
+    });
+
+    it("getCommandHistory filters by search (case-insensitive)", async () => {
+      await session.sendCommand("report_wns");
+      await session.sendCommand("get_nets foo");
+
+      const filtered = session.getCommandHistory(undefined, "REPORT");
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0]!.command).toBe("report_wns");
+    });
+
+    it("getCommandHistory applies a limit and sorts most-recent-first", async () => {
+      await session.sendCommand("cmd_a");
+      await session.sendCommand("cmd_b");
+      // Pin timestamps so the sort is deterministic regardless of wall-clock resolution.
+      session.commandHistory[0]!.timestamp = "2024-01-01T00:00:00.000Z";
+      session.commandHistory[1]!.timestamp = "2024-01-01T00:00:01.000Z";
+
+      const limited = session.getCommandHistory(1);
+      expect(limited).toHaveLength(1);
+      expect(limited[0]!.command).toBe("cmd_b");
+    });
+
+    it("getDetailedMetrics returns the full nested shape", async () => {
+      await session.sendCommand("report_wns");
+      const m = await session.getDetailedMetrics();
+
+      expect(m.session_id).toBe("test-session-1");
+      expect(m.is_alive).toBe(true);
+      expect(m.commands.total_executed).toBe(1);
+      expect(m.commands.history_length).toBe(1);
+      expect(m.buffer.max_size).toBe(1024);
+      expect(m.timeout.configured_seconds).toBeNull();
+      expect(m.timeout.is_timed_out).toBe(false);
+    });
+
+    it("isIdleTimeout is false right after activity, true past the threshold", async () => {
+      await session.sendCommand("report_wns");
+      expect(session.isIdleTimeout(1000)).toBe(false);
+
+      session.lastActivity = new Date(Date.now() - 10_000);
+      expect(session.isIdleTimeout(1)).toBe(true);
+    });
+
+    it("setSessionTimeout drives the uptime-based is_timed_out flag", async () => {
+      // is_timed_out compares configured timeout against wall-clock uptime
+      // (distinct from idle timeout). Push createdAt into the past so uptime
+      // deterministically exceeds the configured 1s timeout.
+      session.setSessionTimeout(1);
+      expect(session.sessionTimeoutSeconds).toBe(1);
+      session.createdAt.setTime(Date.now() - 10_000);
+
+      const m = await session.getDetailedMetrics();
+      expect(m.timeout.configured_seconds).toBe(1);
+      expect(m.timeout.is_timed_out).toBe(true);
+    });
+
+    it("readOutput backfills execution_time and output_length on the last entry", async () => {
+      await session.sendCommand("report_wns");
+      await session.outputBuffer.append("wns 0.1\n");
+      await session.readOutput(100);
+
+      const entry = session.commandHistory[0]!;
+      expect(entry.execution_time).toBeGreaterThanOrEqual(0);
+      expect(entry.output_length).toBeGreaterThan(0);
+    });
+
+    it("filterOutput returns matching lines (regex, case-insensitive)", async () => {
+      await session.outputBuffer.append("alpha\nbeta\ngamma beta\n");
+      const matches = await session.filterOutput("BETA");
+      expect(matches).toEqual(["beta", "gamma beta"]);
+    });
+  });
 });
