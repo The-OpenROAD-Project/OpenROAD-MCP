@@ -23,19 +23,12 @@ export class PtyHandler {
     }
 
     const executable = command[0]!;
+    const execName = path.isAbsolute(executable) ? path.basename(executable) : executable;
 
-    if (path.isAbsolute(executable)) {
-      throw new PTYError(
-        `Command '${executable}' must not be an absolute path. ` +
-          `Use the binary name only (e.g. 'openroad'). ` +
-          `To allow additional commands, set OPENROAD_ALLOWED_COMMANDS environment variable.`,
-      );
-    }
-
-    if (!this._settings.ALLOWED_COMMANDS.includes(executable)) {
+    if (!this._settings.ALLOWED_COMMANDS.includes(execName)) {
       const allowed = this._settings.ALLOWED_COMMANDS.join(", ");
       throw new PTYError(
-        `Command '${executable}' is not in the allowed commands list. Allowed commands: ${allowed}. ` +
+        `Command '${execName}' is not in the allowed commands list. Allowed commands: ${allowed}. ` +
           `To add this command, set OPENROAD_ALLOWED_COMMANDS environment variable.`,
       );
     }
