@@ -262,13 +262,16 @@ describe("PtyHandler", () => {
     it("sends SIGKILL after graceful timeout when process does not exit", async () => {
       await handler.createSession(["echo"]);
 
+      let sigTermWaitDone = false;
       const originalWaitForExit = handler.waitForExit.bind(handler);
       vi.spyOn(handler, "waitForExit").mockImplementation(async (ms) => {
-        if (ms === 5000) return null;
+        if (ms === 5000 && !sigTermWaitDone) {
+          sigTermWaitDone = true;
+          return null;
+        }
         return originalWaitForExit(ms);
       });
 
-      // Simulate kernel acknowledging SIGKILL so the subsequent waitForExit() resolves
       mockPty.kill.mockImplementation((signal: string) => {
         if (signal === "SIGKILL") setTimeout(() => mockPty._exit(137), 0);
       });
@@ -281,9 +284,13 @@ describe("PtyHandler", () => {
     it("waitForExit callers receive 137 when cleanup follows SIGKILL-forced termination so the exit listener is not disposed before the exit fires", async () => {
       await handler.createSession(["echo"]);
 
+      let sigTermWaitDone = false;
       const originalWaitForExit = handler.waitForExit.bind(handler);
       vi.spyOn(handler, "waitForExit").mockImplementation(async (ms) => {
-        if (ms === 5000) return null;
+        if (ms === 5000 && !sigTermWaitDone) {
+          sigTermWaitDone = true;
+          return null;
+        }
         return originalWaitForExit(ms);
       });
 
@@ -303,7 +310,6 @@ describe("PtyHandler", () => {
     it("does not throw when SIGTERM kill raises (process already dead)", async () => {
       await handler.createSession(["echo"]);
       mockPty.kill.mockImplementation(() => {
-        // Simulate the process dying just before the signal arrived (ESRCH race)
         setTimeout(() => mockPty._exit(0), 0);
         throw new Error("ESRCH: no such process");
       });
@@ -315,7 +321,6 @@ describe("PtyHandler", () => {
     it("does not throw when SIGKILL raises (process already dead)", async () => {
       await handler.createSession(["echo"]);
       mockPty.kill.mockImplementation(() => {
-        // Simulate the process dying just before the signal arrived (ESRCH race)
         setTimeout(() => mockPty._exit(0), 0);
         throw new Error("ESRCH: no such process");
       });

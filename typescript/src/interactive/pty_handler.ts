@@ -158,9 +158,6 @@ export class PtyHandler {
     try {
       this._ptyProcess.kill(force ? "SIGKILL" : "SIGTERM");
     } catch {
-      // kill() throws ESRCH when the process exits between the _alive guard and
-      // the signal send. Wait briefly for the onExit handler to fire so we
-      // observe the exit code rather than returning with _alive still true.
       await this.waitForExit(200);
       return;
     }
@@ -172,11 +169,7 @@ export class PtyHandler {
       } catch {
         // ignored
       }
-      // Await SIGKILL acknowledgement before returning so onExit fires and
-      // records _exitCode; without this, cleanup() disposes _exitDisposable
-      // while _exitCode is still null and waitForExit() callers get null
-      // instead of 137.
-      await this.waitForExit();
+      await this.waitForExit(5000);
     }
   }
 
