@@ -285,5 +285,3 @@ class PTYHandler:
         self._original_attrs = None
 
         logger.debug("PTY handler cleanup completed")
-
-
