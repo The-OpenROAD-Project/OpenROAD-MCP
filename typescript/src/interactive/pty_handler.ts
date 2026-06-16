@@ -158,6 +158,10 @@ export class PtyHandler {
     try {
       this._ptyProcess.kill(force ? "SIGKILL" : "SIGTERM");
     } catch {
+      // kill() throws ESRCH when the process exits between the _alive guard and
+      // the signal send. Wait briefly for the onExit handler to fire so we
+      // observe the exit code rather than returning with _alive still true.
+      await this.waitForExit(200);
       return;
     }
 

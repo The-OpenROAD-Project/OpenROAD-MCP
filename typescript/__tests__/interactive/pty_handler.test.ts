@@ -303,19 +303,25 @@ describe("PtyHandler", () => {
     it("does not throw when SIGTERM kill raises (process already dead)", async () => {
       await handler.createSession(["echo"]);
       mockPty.kill.mockImplementation(() => {
+        // Simulate the process dying just before the signal arrived (ESRCH race)
+        setTimeout(() => mockPty._exit(0), 0);
         throw new Error("ESRCH: no such process");
       });
 
       await expect(handler.terminateProcess(false)).resolves.toBeUndefined();
+      expect(handler.isProcessAlive()).toBe(false);
     });
 
     it("does not throw when SIGKILL raises (process already dead)", async () => {
       await handler.createSession(["echo"]);
       mockPty.kill.mockImplementation(() => {
+        // Simulate the process dying just before the signal arrived (ESRCH race)
+        setTimeout(() => mockPty._exit(0), 0);
         throw new Error("ESRCH: no such process");
       });
 
       await expect(handler.terminateProcess(true)).resolves.toBeUndefined();
+      expect(handler.isProcessAlive()).toBe(false);
     });
   });
 
