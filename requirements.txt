@@ -138,7 +138,7 @@ pydantic-settings==2.13.1
     # via mcp
 pygments==2.20.0
     # via rich
-pyjwt==2.12.1
+pyjwt==2.13.0
     # via mcp
 pyperclip==1.11.0
     # via fastmcp
