@@ -37,7 +37,7 @@ click==8.3.1
     # via
     #   typer
     #   uvicorn
-cryptography==46.0.7
+cryptography==48.0.1
     # via
     #   authlib
     #   pyjwt
@@ -147,7 +147,7 @@ python-dotenv==1.2.2
     #   fastmcp
     #   mcp
     #   pydantic-settings
-python-multipart==0.0.27
+python-multipart==0.0.31
     # via mcp
 pyyaml==6.0.3
     # via
@@ -176,7 +176,7 @@ shellingham==1.5.4
     # via typer
 sse-starlette==3.3.4
     # via mcp
-starlette==1.0.1
+starlette==1.3.1
     # via
     #   mcp
     #   sse-starlette
