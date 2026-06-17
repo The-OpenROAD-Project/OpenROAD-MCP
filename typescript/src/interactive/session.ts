@@ -1,6 +1,7 @@
 import pidusage from "pidusage";
 import { Mutex } from "async-mutex";
 import { ANSIDecoder } from "../utils/ansi_decoder.js";
+import { getLogger } from "../utils/logging.js";
 import { getSettings } from "../config/settings.js";
 import type { Settings } from "../config/settings.js";
 import { SessionState } from "../core/models.js";
@@ -293,6 +294,12 @@ export class InteractiveSession {
     await this._lifecycleLock.runExclusive(async () => {
       if (this._state === SessionState.TERMINATED) return;
 
+      if (this._inputQueue.length > 0) {
+        getLogger("session").warn(
+          `Session ${this.sessionId}: discarding ${this._inputQueue.length} pending command(s) on terminate`,
+        );
+        this._inputQueue.length = 0;
+      }
       this.state = SessionState.TERMINATED;
       this._signalShutdown();
 
