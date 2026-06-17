@@ -622,6 +622,15 @@ describe("InteractiveSession", () => {
       expect(session.commandHistory[0]!.command).toBe("puts hi");
     });
 
+    it("records execution_time for every command batched into one readOutput", async () => {
+      await session.sendCommand("cmd_a");
+      await session.sendCommand("cmd_b");
+      await session.readOutput(50);
+
+      expect(session.commandHistory[0]!.execution_time).toBeDefined();
+      expect(session.commandHistory[1]!.execution_time).toBeDefined();
+    });
+
     it("getCommandHistory filters by search (case-insensitive)", async () => {
       await session.sendCommand("report_wns");
       await session.sendCommand("get_nets foo");

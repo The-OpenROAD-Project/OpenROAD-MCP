@@ -387,12 +387,18 @@ export class InteractiveSession {
     return undefined;
   }
 
-  /** Update lastActivity and backfill the last history entry after a read. */
+  /**
+   * Update lastActivity and backfill history entries after a read. Walks back
+   * over every trailing entry still missing execution_time, stopping at the
+   * first already-recorded one, so commands batched into a single readOutput
+   * all get timing instead of only the most recent.
+   */
   private _recordReadResult(outputLength: number, executionTime: number): void {
-    const last = this.commandHistory[this.commandHistory.length - 1];
-    if (last && last.execution_time === undefined) {
-      last.execution_time = executionTime;
-      last.output_length = outputLength;
+    for (let i = this.commandHistory.length - 1; i >= 0; i--) {
+      const entry = this.commandHistory[i];
+      if (!entry || entry.execution_time !== undefined) break;
+      entry.execution_time = executionTime;
+      entry.output_length = outputLength;
     }
     this.lastActivity = new Date();
   }
