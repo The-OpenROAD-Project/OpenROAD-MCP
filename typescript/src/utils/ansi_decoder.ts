@@ -115,7 +115,11 @@ export class ANSIDecoder {
     if (mode === "annotate") {
       let result = text;
       for (const seq of new Set(sequences)) {
-        result = result.replaceAll(seq, `[${ANSIDecoder.decodeEscapeSequence(seq)}]`);
+        // Function replacement: the value is inserted literally, so `$&`/`$1`
+        // inside an OSC sequence body cannot be reinterpreted as a replacement
+        // pattern and corrupt the output.
+        const annotation = `[${ANSIDecoder.decodeEscapeSequence(seq)}]`;
+        result = result.replaceAll(seq, () => annotation);
       }
       return result.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     }
@@ -123,7 +127,8 @@ export class ANSIDecoder {
     if (mode === "preserve") {
       let result = text;
       for (const seq of new Set(sequences)) {
-        result = result.replaceAll(seq, `${seq}[${ANSIDecoder.decodeEscapeSequence(seq)}]`);
+        const annotated = `${seq}[${ANSIDecoder.decodeEscapeSequence(seq)}]`;
+        result = result.replaceAll(seq, () => annotated);
       }
       return result;
     }

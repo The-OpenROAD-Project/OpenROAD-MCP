@@ -67,6 +67,22 @@ describe("ANSIDecoder", () => {
     });
   });
 
+  describe("translateOutput - $ replacement safety", () => {
+    it("does not reinterpret $& inside an OSC sequence body when annotating", () => {
+      // OSC title set with a literal "$&" in the body. With a string replacement
+      // the "$&" would expand to the matched sequence and corrupt the output.
+      const osc = "\x1b]0;$&title\x07";
+      const result = ANSIDecoder.translateOutput(`before${osc}after`, "annotate");
+      expect(result).toBe("before[Unknown escape sequence (\x1b]0;$&title\x07)]after");
+    });
+
+    it("inserts the original sequence literally in preserve mode", () => {
+      const osc = "\x1b]0;$$x\x07";
+      const result = ANSIDecoder.translateOutput(osc, "preserve");
+      expect(result).toContain(osc);
+    });
+  });
+
   describe("translateOutput - decode mode", () => {
     it("includes breakdown header", () => {
       const result = ANSIDecoder.translateOutput("\x1b[1mtext", "decode");
