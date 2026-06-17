@@ -290,7 +290,12 @@ export class OpenROADManager {
 
     for (const [sessionId, session] of this._initializedSessions()) {
       if (!session.isAlive()) {
-        const timeSinceDeath = (now - session.lastActivity.getTime()) / 1000;
+        // Measure from the actual death time. lastActivity is the last command,
+        // which for a long-idle session is far earlier and would trip the
+        // force-cleanup timer immediately. Fall back to lastActivity only if the
+        // death timestamp is somehow unset.
+        const deathTime = (session.terminatedAt ?? session.lastActivity).getTime();
+        const timeSinceDeath = (now - deathTime) / 1000;
         terminated.push([sessionId, session, timeSinceDeath > FORCE_CLEANUP_AFTER_SECONDS]);
       }
     }

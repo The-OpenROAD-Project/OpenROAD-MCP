@@ -49,6 +49,10 @@ export class InteractiveSession {
   sessionTimeoutSeconds: number | null = null;
 
   private _state: SessionState;
+  // Wall-clock time the process actually died, set on the first TERMINATED
+  // transition. Used by the manager's force-cleanup timer; lastActivity would
+  // be wrong because a long-idle session dies far after its last command.
+  private _terminatedAt: Date | null = null;
   pty: PtyHandler;
   readonly outputBuffer: CircularBuffer;
 
@@ -73,7 +77,15 @@ export class InteractiveSession {
   }
 
   set state(value: SessionState) {
+    if (value === SessionState.TERMINATED && this._terminatedAt === null) {
+      this._terminatedAt = new Date();
+    }
     this._state = value;
+  }
+
+  /** Wall-clock time the session first became TERMINATED, or null if still alive. */
+  get terminatedAt(): Date | null {
+    return this._terminatedAt;
   }
 
   isAlive(): boolean {
@@ -81,7 +93,7 @@ export class InteractiveSession {
 
     const processAlive = this.pty.isProcessAlive();
     if (!processAlive && this._state === SessionState.ACTIVE) {
-      this._state = SessionState.TERMINATED;
+      this.state = SessionState.TERMINATED;
       this._signalShutdown();
       return false;
     }
@@ -130,7 +142,7 @@ export class InteractiveSession {
         },
         (_exitCode: number) => {
           if (this._state !== SessionState.TERMINATED) {
-            this._state = SessionState.TERMINATED;
+            this.state = SessionState.TERMINATED;
             this._signalShutdown();
           }
         },
@@ -271,7 +283,7 @@ export class InteractiveSession {
     await this._lifecycleLock.runExclusive(async () => {
       if (this._state === SessionState.TERMINATED) return;
 
-      this._state = SessionState.TERMINATED;
+      this.state = SessionState.TERMINATED;
       this._signalShutdown();
 
       await this.pty.terminateProcess(force);
@@ -287,7 +299,7 @@ export class InteractiveSession {
   async cleanup(): Promise<void> {
     await this._lifecycleLock.runExclusive(async () => {
       if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
-        this._state = SessionState.TERMINATED;
+        this.state = SessionState.TERMINATED;
       }
       this._signalShutdown();
 
@@ -314,7 +326,7 @@ export class InteractiveSession {
    */
   private _markDead(): void {
     if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
-      this._state = SessionState.TERMINATED;
+      this.state = SessionState.TERMINATED;
     }
   }
 
