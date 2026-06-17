@@ -135,8 +135,10 @@ export class PtyHandler {
   }
 
   async waitForExit(timeoutMs?: number): Promise<number | null> {
-    if (!this._ptyProcess) return null;
+    // Check the recorded exit code first so callers that arrive after cleanup()
+    // still get the real code rather than null.
     if (this._exitCode !== null) return this._exitCode;
+    if (!this._ptyProcess) return null;
 
     return new Promise<number | null>((resolve) => {
       let settled = false;
@@ -203,6 +205,7 @@ export class PtyHandler {
     this._alive = false;
     this._dataDisposable = null;
     this._exitDisposable = null;
-    this._exitCode = null;
+    // Keep _exitCode so a late waitForExit() caller still sees the real exit
+    // code. createSession() resets it to null when the handler is reused.
   }
 }
