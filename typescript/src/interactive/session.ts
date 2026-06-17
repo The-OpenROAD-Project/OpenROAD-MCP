@@ -115,9 +115,7 @@ export class InteractiveSession {
           // circular buffer's eviction logic bounds memory correctly.
           const appendChunk = (chunk: string): void => {
             this.outputBuffer.append(chunk).catch(() => {
-              if (this._state === SessionState.ACTIVE) {
-                this._state = SessionState.TERMINATED;
-              }
+              this._markDead();
               this._signalShutdown();
             });
           };
@@ -138,7 +136,12 @@ export class InteractiveSession {
         },
       );
 
-      this._state = SessionState.ACTIVE;
+      // Only promote to ACTIVE if the session is still creating. A fast process
+      // death during startup may already have flipped us to TERMINATED via the
+      // onData/onExit handlers; do not resurrect it into an undead ACTIVE state.
+      if (this._state === SessionState.CREATING) {
+        this._state = SessionState.ACTIVE;
+      }
       this._writerTask = this._writeInput();
     } catch (e) {
       this._state = SessionState.ERROR;
@@ -304,6 +307,17 @@ export class InteractiveSession {
     for (const w of waiters) w();
   }
 
+  /**
+   * Transition to TERMINATED from any non-terminal state (idempotent). Covers
+   * CREATING as well as ACTIVE so a session that dies mid-startup is never left
+   * stranded as an uncollectable CREATING zombie.
+   */
+  private _markDead(): void {
+    if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
+      this._state = SessionState.TERMINATED;
+    }
+  }
+
   private async _writeInput(): Promise<void> {
     while (!this._isShutdown) {
       const data = await this._dequeueInput(1000);
@@ -312,9 +326,7 @@ export class InteractiveSession {
         try {
           this.pty.writeInput(data);
         } catch {
-          if (this._state === SessionState.ACTIVE) {
-            this._state = SessionState.TERMINATED;
-          }
+          this._markDead();
           this._signalShutdown();
           break;
         }
