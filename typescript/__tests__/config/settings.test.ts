@@ -115,6 +115,16 @@ describe("Settings", () => {
       expect(() => Settings.fromEnv()).toThrow("OPENROAD_COMMAND_TIMEOUT");
     });
 
+    it("rejects Infinity for float fields", () => {
+      process.env["OPENROAD_COMMAND_TIMEOUT"] = "Infinity";
+      expect(() => Settings.fromEnv()).toThrow("OPENROAD_COMMAND_TIMEOUT");
+    });
+
+    it("rejects negative floats", () => {
+      process.env["OPENROAD_COMMAND_TIMEOUT"] = "-1";
+      expect(() => Settings.fromEnv()).toThrow("OPENROAD_COMMAND_TIMEOUT");
+    });
+
     it("throws on invalid int", () => {
       process.env["OPENROAD_MAX_SESSIONS"] = "3.7";
       expect(() => Settings.fromEnv()).toThrow("OPENROAD_MAX_SESSIONS");

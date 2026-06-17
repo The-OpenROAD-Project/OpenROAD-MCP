@@ -18,7 +18,11 @@ function parseBool(envKey: string, val: string): boolean {
 function parseFloat_(envKey: string, val: string): number {
   if (val.trim() === "") throw new Error(`Invalid value for ${envKey}: (empty string). Expected float.`);
   const n = Number(val);
-  if (isNaN(n)) throw new Error(`Invalid value for ${envKey}: ${val}. Expected float.`);
+  // Reject NaN and Infinity: an infinite timeout/delay would disable the very
+  // limit it configures, and a negative duration is never meaningful here.
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`Invalid value for ${envKey}: ${val}. Expected a non-negative finite float.`);
+  }
   return n;
 }
 
