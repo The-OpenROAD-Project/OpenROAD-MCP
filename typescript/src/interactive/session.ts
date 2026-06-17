@@ -1,4 +1,5 @@
 import pidusage from "pidusage";
+import { Mutex } from "async-mutex";
 import { ANSIDecoder } from "../utils/ansi_decoder.js";
 import { getSettings } from "../config/settings.js";
 import type { Settings } from "../config/settings.js";
@@ -55,6 +56,9 @@ export class InteractiveSession {
   private _inputWaiters: Array<() => void> = [];
   private _isShutdown = false;
   private _writerTask: Promise<void> | null = null;
+  // Serialises terminate()/cleanup() so concurrent callers cannot double-kill
+  // the process or deliver a stale exit code to waiters.
+  private readonly _lifecycleLock = new Mutex();
 
   constructor(sessionId: string, bufferSize?: number, private readonly _settings: Settings = getSettings()) {
     this.sessionId = sessionId;
@@ -261,33 +265,37 @@ export class InteractiveSession {
   }
 
   async terminate(force = false): Promise<void> {
-    if (this._state === SessionState.TERMINATED) return;
+    await this._lifecycleLock.runExclusive(async () => {
+      if (this._state === SessionState.TERMINATED) return;
 
-    this._state = SessionState.TERMINATED;
-    this._signalShutdown();
+      this._state = SessionState.TERMINATED;
+      this._signalShutdown();
 
-    await this.pty.terminateProcess(force);
-    await this.pty.cleanup();
+      await this.pty.terminateProcess(force);
+      await this.pty.cleanup();
 
-    if (this._writerTask !== null) {
-      await this._writerTask;
-      this._writerTask = null;
-    }
+      if (this._writerTask !== null) {
+        await this._writerTask;
+        this._writerTask = null;
+      }
+    });
   }
 
   async cleanup(): Promise<void> {
-    if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
-      this._state = SessionState.TERMINATED;
-    }
-    this._signalShutdown();
+    await this._lifecycleLock.runExclusive(async () => {
+      if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
+        this._state = SessionState.TERMINATED;
+      }
+      this._signalShutdown();
 
-    if (this._writerTask !== null) {
-      await this._writerTask;
-      this._writerTask = null;
-    }
+      if (this._writerTask !== null) {
+        await this._writerTask;
+        this._writerTask = null;
+      }
 
-    await this.pty.cleanup();
-    await this.outputBuffer.clear();
+      await this.pty.cleanup();
+      await this.outputBuffer.clear();
+    });
   }
 
   private _signalShutdown(): void {
