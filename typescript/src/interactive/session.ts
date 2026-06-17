@@ -459,8 +459,9 @@ export class InteractiveSession {
     // Sort by timestamp, most recent first.
     history.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0));
 
-    // Match Python's truthy check: limit === 0 leaves the list unsliced.
-    if (limit) {
+    // Only a positive limit slices. A zero or negative limit leaves the list
+    // intact rather than letting `slice(0, -n)` silently drop recent entries.
+    if (limit !== undefined && limit > 0) {
       history = history.slice(0, limit);
     }
 

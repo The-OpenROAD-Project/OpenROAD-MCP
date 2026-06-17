@@ -643,6 +643,13 @@ describe("InteractiveSession", () => {
       expect(limited[0]!.command).toBe("cmd_b");
     });
 
+    it("getCommandHistory ignores a negative limit instead of dropping entries", async () => {
+      await session.sendCommand("cmd_a");
+      await session.sendCommand("cmd_b");
+      const all = session.getCommandHistory(-1);
+      expect(all).toHaveLength(2);
+    });
+
     it("getDetailedMetrics returns the full nested shape", async () => {
       await session.sendCommand("report_wns");
       const m = await session.getDetailedMetrics();
