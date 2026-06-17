@@ -26,7 +26,9 @@ function makeMockPty(): MockPty {
   let capturedOnExit: ((e: { exitCode: number; signal?: number }) => void) | undefined;
 
   return {
-    pid: 12345,
+    // Use the test runner's own pid so isProcessAlive()'s `process.kill(pid, 0)`
+    // liveness probe sees a real, live process for an unterminated mock.
+    pid: process.pid,
     write: vi.fn(),
     kill: vi.fn(),
     resize: vi.fn(),
