@@ -134,7 +134,10 @@ export class OpenROADManager {
   }
 
   async terminateAllSessions(force = false): Promise<number> {
-    const sessionIds = [...this.sessions.keys()];
+    // Only initialized sessions are terminable. Null placeholders belong to an
+    // in-flight createSession (which resolves or removes them itself), so
+    // terminating them would throw "still being created" and be lost.
+    const sessionIds = this._initializedSessions().map(([sid]) => sid);
     if (sessionIds.length === 0) return 0;
 
     const results = await Promise.allSettled(

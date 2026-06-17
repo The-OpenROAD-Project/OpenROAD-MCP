@@ -202,6 +202,21 @@ describe("OpenROADManager", () => {
       expect(count).toBe(2);
       expect(manager.getSessionCount()).toBe(0);
     });
+
+    it("skips in-progress placeholders instead of throwing", async () => {
+      // A session whose start() never resolves leaves a null placeholder in the
+      // map (createSession holds the lock). terminateAllSessions must not try to
+      // terminate it (which would throw "still being created").
+      MockedSession.mockImplementationOnce(function (this: unknown, sessionId: string) {
+        const mock = makeMockSession(sessionId);
+        mock.start.mockReturnValue(new Promise<void>(() => {})); // never resolves
+        created.push(mock);
+        return mock as unknown as InteractiveSession;
+      } as unknown as (sessionId: string) => InteractiveSession);
+      void manager.createSession({ sessionId: "pending" });
+
+      await expect(manager.terminateAllSessions()).resolves.toBe(0);
+    });
   });
 
   describe("inspectSession & getSessionHistory", () => {
