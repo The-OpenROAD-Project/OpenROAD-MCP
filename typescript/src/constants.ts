@@ -24,3 +24,7 @@ export const CHUNK_JOIN_THRESHOLD = 100;
 export const LARGE_IO_THRESHOLD = 10_000;
 export const SLOW_OPERATION_THRESHOLD = 1.0;
 
+// Cap on retained per-session command history entries. Bounds memory on
+// long-lived sessions; the oldest entries are dropped once the cap is exceeded.
+export const MAX_COMMAND_HISTORY = 1000;
+

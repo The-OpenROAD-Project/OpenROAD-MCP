@@ -10,7 +10,12 @@ import type {
   InteractiveSessionInfo,
   SessionDetailedMetrics,
 } from "../core/models.js";
-import { BYTES_TO_MB, MAX_COMMAND_COMPLETION_WINDOW, UTILIZATION_PERCENTAGE_BASE } from "../constants.js";
+import {
+  BYTES_TO_MB,
+  MAX_COMMAND_COMPLETION_WINDOW,
+  MAX_COMMAND_HISTORY,
+  UTILIZATION_PERCENTAGE_BASE,
+} from "../constants.js";
 import { CircularBuffer } from "./buffer.js";
 import { SessionError, SessionTerminatedError } from "./models.js";
 import { PtyHandler } from "./pty_handler.js";
@@ -182,6 +187,11 @@ export class InteractiveSession {
       command_number: this.commandCount + 1,
       execution_start: Date.now() / 1000,
     });
+    // Bound history so a long-lived session cannot grow it without limit.
+    // command_number keeps increasing, so dropping the oldest entry is safe.
+    if (this.commandHistory.length > MAX_COMMAND_HISTORY) {
+      this.commandHistory.shift();
+    }
 
     const data = command.endsWith("\n") ? command : command + "\n";
     this._inputQueue.push(data);

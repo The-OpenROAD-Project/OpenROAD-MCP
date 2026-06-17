@@ -3,6 +3,7 @@ import { InteractiveSession } from "../../src/interactive/session.js";
 import { SessionState } from "../../src/core/models.js";
 import { SessionError, SessionTerminatedError } from "../../src/interactive/models.js";
 import { Settings } from "../../src/config/settings.js";
+import { MAX_COMMAND_HISTORY } from "../../src/constants.js";
 import type { PtyHandler } from "../../src/interactive/pty_handler.js";
 
 vi.mock("node-pty", () => ({ spawn: vi.fn() }));
@@ -629,6 +630,21 @@ describe("InteractiveSession", () => {
 
       expect(session.commandHistory[0]!.execution_time).toBeDefined();
       expect(session.commandHistory[1]!.execution_time).toBeDefined();
+    });
+
+    it("bounds commandHistory at MAX_COMMAND_HISTORY, dropping the oldest", async () => {
+      // Large queue so rapid sends never hit the input-queue-full guard.
+      const s = new InteractiveSession("hist-cap", 1024, new Settings({ SESSION_QUEUE_SIZE: 1_000_000 }));
+      s.pty = makeMockPty();
+      await s.start();
+
+      const total = MAX_COMMAND_HISTORY + 5;
+      for (let i = 1; i <= total; i++) await s.sendCommand(`c${i}`);
+
+      expect(s.commandHistory).toHaveLength(MAX_COMMAND_HISTORY);
+      // Oldest entries dropped: first retained command_number is total - MAX + 1.
+      expect(s.commandHistory[0]!.command_number).toBe(total - MAX_COMMAND_HISTORY + 1);
+      await s.cleanup();
     });
 
     it("getCommandHistory filters by search (case-insensitive)", async () => {
