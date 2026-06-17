@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { ValidationError } from "../exceptions.js";
 
 export function validatePathSegment(segment: string, segmentName: string): void {
-  if (!segment) throw new ValidationError(`${segmentName} cannot be empty`);
+  if (!segment || segment.trim() === "") throw new ValidationError(`${segmentName} cannot be empty`);
   if (segment === "." || segment === "..") throw new ValidationError(`${segmentName} cannot be '.' or '..'`);
   if (segment.includes("/") || segment.includes("\\")) throw new ValidationError(`${segmentName} cannot contain path separators`);
   if (segment.includes("\x00")) throw new ValidationError(`${segmentName} cannot contain null bytes`);

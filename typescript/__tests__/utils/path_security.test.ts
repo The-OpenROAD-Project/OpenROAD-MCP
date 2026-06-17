@@ -18,6 +18,12 @@ describe("validatePathSegment", () => {
     );
   });
 
+  it("rejects whitespace-only segment", () => {
+    expect(() => validatePathSegment("   ", "test_segment")).toThrow(
+      new ValidationError("test_segment cannot be empty"),
+    );
+  });
+
   it("rejects '.' segment", () => {
     expect(() => validatePathSegment(".", "test_segment")).toThrow(
       new ValidationError("test_segment cannot be '.' or '..'"),
