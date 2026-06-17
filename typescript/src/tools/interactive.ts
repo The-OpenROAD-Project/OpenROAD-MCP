@@ -146,6 +146,11 @@ export class QueryShellTool extends BaseTool {
       );
       return this.formatResult(result as unknown as Record<string, unknown>);
     } catch (e) {
+      // Auto-created sessions must be cleaned up when executeCommand throws to
+      // avoid leaking the session.
+      if (sid === null && resolvedId !== null) {
+        this.manager.terminateSession(resolvedId, true).catch(() => { /* best effort */ });
+      }
       if (e instanceof SessionNotFoundError) {
         return this.formatResult(
           sessionNotFoundExecResult(
@@ -200,6 +205,9 @@ export class ExecShellTool extends BaseTool {
       );
       return this.formatResult(result as unknown as Record<string, unknown>);
     } catch (e) {
+      if (sid === null && resolvedId !== null) {
+        this.manager.terminateSession(resolvedId, true).catch(() => { /* best effort */ });
+      }
       if (e instanceof SessionNotFoundError) {
         return this.formatResult(
           sessionNotFoundExecResult(
