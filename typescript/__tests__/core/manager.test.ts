@@ -187,7 +187,9 @@ describe("OpenROADManager", () => {
       await manager.createSession({ sessionId: "s1" });
       await manager.terminateSession("s1", true);
       expect(created[0]!.terminate).toHaveBeenCalledWith(true);
-      expect(created[0]!.cleanup).toHaveBeenCalledOnce();
+      // terminate() handles teardown; cleanup() must not be called again here
+      // (it would clear the buffer and double-tear-down the PTY).
+      expect(created[0]!.cleanup).not.toHaveBeenCalled();
       expect(manager.getSessionCount()).toBe(0);
     });
   });

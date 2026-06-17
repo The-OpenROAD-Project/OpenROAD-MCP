@@ -121,8 +121,11 @@ export class OpenROADManager {
   async terminateSession(sessionId: string, force = false): Promise<void> {
     const session = this._getSession(sessionId);
 
+    // terminate() already tears down the PTY and stops the writer task. We do
+    // not also call cleanup() here: cleanup() clears the output buffer, which
+    // would discard final output a concurrent reader may still need. The
+    // session is dropped from the map below, so its buffer is GC'd anyway.
     await session.terminate(force);
-    await session.cleanup();
     this.logger.info(`Terminated session ${sessionId}`);
 
     await this.cleanupLock.runExclusive(() => {
