@@ -130,6 +130,11 @@ describe("Settings", () => {
       expect(() => Settings.fromEnv()).toThrow("OPENROAD_MAX_SESSIONS");
     });
 
+    it("rejects negative integers for int fields", () => {
+      process.env["OPENROAD_MAX_SESSIONS"] = "-1";
+      expect(() => Settings.fromEnv()).toThrow("OPENROAD_MAX_SESSIONS");
+    });
+
     it("rejects decimal strings for int fields", () => {
       process.env["OPENROAD_MAX_SESSIONS"] = "50.0";
       expect(() => Settings.fromEnv()).toThrow("OPENROAD_MAX_SESSIONS");

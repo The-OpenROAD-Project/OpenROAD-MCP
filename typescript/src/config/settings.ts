@@ -29,7 +29,11 @@ function parseFloat_(envKey: string, val: string): number {
 function parseInt_(envKey: string, val: string): number {
   if (val.trim() === "") throw new Error(`Invalid value for ${envKey}: (empty string). Expected int.`);
   if (!/^-?\d+$/.test(val.trim())) throw new Error(`Invalid value for ${envKey}: ${val}. Expected int.`);
-  return Number(val);
+  const n = Number(val);
+  // Every integer setting (session/buffer/queue limits) must be non-negative; a
+  // negative value such as MAX_SESSIONS=-1 would block all session creation.
+  if (n < 0) throw new Error(`Invalid value for ${envKey}: ${val}. Expected a non-negative integer.`);
+  return n;
 }
 
 export class Settings {
