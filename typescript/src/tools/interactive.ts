@@ -306,13 +306,12 @@ export class TerminateSessionTool extends BaseTool {
   }
 
   async execute(sessionId: string, force = false): Promise<string> {
-    let wasAlive = true;
+    let wasAlive = false;
     try {
-      await this.manager.getSessionInfo(sessionId);
+      const info = await this.manager.getSessionInfo(sessionId);
+      wasAlive = info.isAlive;
     } catch (e) {
-      if (e instanceof SessionNotFoundError) {
-        wasAlive = false;
-      }
+      if (!(e instanceof SessionNotFoundError)) throw e;
     }
 
     try {
@@ -331,6 +330,7 @@ export class TerminateSessionTool extends BaseTool {
           SessionTerminationResult.parse({
             sessionId,
             terminated: false,
+            wasAlive,
             error: String(e),
           }) as unknown as Record<string, unknown>,
         );
@@ -339,6 +339,7 @@ export class TerminateSessionTool extends BaseTool {
         SessionTerminationResult.parse({
           sessionId,
           terminated: false,
+          wasAlive,
           error: `Termination failed: ${(e as Error).message ?? String(e)}`,
         }) as unknown as Record<string, unknown>,
       );
