@@ -89,17 +89,21 @@ export class PtyHandler {
       this._alive = true;
       this._exitCode = null;
 
-      if (onData) {
-        this._dataDisposable = this._ptyProcess.onData(onData);
-      }
-
+      // Register the exit handler before onData so a fast-exiting process can
+      // never slip its exit event through before we are listening. The guard
+      // keeps the handler idempotent against a double-delivered exit.
       this._exitDisposable = this._ptyProcess.onExit(({ exitCode }) => {
+        if (!this._alive && this._exitCode !== null) return;
         this._alive = false;
         this._exitCode = exitCode;
         const resolvers = this._exitResolvers.splice(0);
         for (const resolve of resolvers) resolve(exitCode);
         onExit?.(exitCode);
       });
+
+      if (onData) {
+        this._dataDisposable = this._ptyProcess.onData(onData);
+      }
     } catch (e) {
       if (e instanceof PTYError) throw e;
       throw new PTYError(`Failed to create PTY session: ${e}`);
@@ -118,7 +122,16 @@ export class PtyHandler {
   }
 
   isProcessAlive(): boolean {
-    return this._alive;
+    if (!this._alive || !this._ptyProcess) return false;
+    // Defensive liveness probe: if the exit event was somehow missed, signal 0
+    // detects a dead/reaped pid (ESRCH) so `_alive` cannot stay true forever.
+    try {
+      process.kill(this._ptyProcess.pid, 0);
+      return true;
+    } catch {
+      this._alive = false;
+      return false;
+    }
   }
 
   async waitForExit(timeoutMs?: number): Promise<number | null> {
