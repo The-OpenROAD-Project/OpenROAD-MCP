@@ -317,9 +317,12 @@ export class OpenROADManager {
             cleaned++;
           }
         } else {
-          await session.cleanup();
-          this.sessions.delete(sessionId);
-          cleaned++;
+          try {
+            await session.cleanup();
+          } finally {
+            this.sessions.delete(sessionId);
+            cleaned++;
+          }
         }
       } catch (e) {
         this.logger.error(`Error during session ${sessionId} cleanup: ${String(e)}`);
