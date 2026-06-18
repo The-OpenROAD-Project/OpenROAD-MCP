@@ -231,20 +231,7 @@ export class OpenROADManager {
 
   async cleanupAll(): Promise<void> {
     this.logger.info("Starting OpenROAD cleanup");
-
     await this.terminateAllSessions(true);
-
-    await this.cleanupLock.runExclusive(async () => {
-      for (const [, session] of this._initializedSessions()) {
-        try {
-          await session.cleanup();
-        } catch (e) {
-          this.logger.warn(`Error during session cleanup: ${String(e)}`);
-        }
-      }
-      this.sessions.clear();
-    });
-
     this.logger.info("OpenROAD cleanup completed");
   }
 
