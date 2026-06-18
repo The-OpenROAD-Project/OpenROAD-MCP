@@ -172,10 +172,6 @@ export class OpenROADManager {
   async sessionMetrics(): Promise<ManagerMetrics> {
     await this._cleanupTerminatedSessionsWithLock();
 
-    const totalSessions = this.sessions.size;
-    const activeSessions = this.getActiveSessionCount();
-    const terminatedSessions = totalSessions - activeSessions;
-
     const sessionDetails: SessionDetailedMetrics[] = [];
     let totalCommands = 0;
     let totalCpuTime = 0;
@@ -192,6 +188,12 @@ export class OpenROADManager {
         this.logger.warn(`Failed to get metrics for session ${session.sessionId}: ${String(e)}`);
       }
     }
+
+    // Capture counts after the async loop so the snapshot reflects the final
+    // state rather than a stale pre-loop value.
+    const totalSessions = this.sessions.size;
+    const activeSessions = this.getActiveSessionCount();
+    const terminatedSessions = totalSessions - activeSessions;
 
     return {
       manager: {
