@@ -234,7 +234,7 @@ function* iterVerbs(command: string): Generator<string> {
       yield verb;
     }
   }
-  for (const match of command.matchAll(/\[(\w+)/g)) {
+  for (const match of command.matchAll(/\[\s*(?::+)?(\w+)/g)) {
     yield match[1]!;
   }
 }

@@ -218,6 +218,10 @@ describe("isQueryCommand", () => {
     expect(isQueryCommand("set x [exec ls]")).toEqual([false, "exec"]);
   });
 
+  it("bracket: blocks set x [::exec ls] with namespace-qualified command", () => {
+    expect(isQueryCommand("set x [::exec ls]")).toEqual([false, "exec"]);
+  });
+
   it("bracket: blocks expr {[exec ls]} via bracket scan (finding 2)", () => {
     expect(isQueryCommand("expr {[exec ls]}")).toEqual([false, "exec"]);
   });
