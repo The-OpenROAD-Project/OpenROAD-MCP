@@ -94,7 +94,13 @@ export class InteractiveSession {
     return this._terminatedAt;
   }
 
-  isAlive(): boolean {
+  /**
+   * Check whether the session is alive, syncing state as a side effect.
+   * If the underlying PTY process has died since the last check, this
+   * transitions _state to TERMINATED and signals the writer to stop.
+   * Named checkAlive (not isAlive) to signal that it is not a pure predicate.
+   */
+  checkAlive(): boolean {
     if (this._state === SessionState.TERMINATED) return false;
 
     const processAlive = this.pty.isProcessAlive();
@@ -169,7 +175,7 @@ export class InteractiveSession {
   }
 
   async sendCommand(command: string): Promise<void> {
-    if (!this.isAlive()) {
+    if (!this.checkAlive()) {
       throw new SessionTerminatedError(`Session ${this.sessionId} is not active`, this.sessionId);
     }
 
@@ -207,7 +213,7 @@ export class InteractiveSession {
   async readOutput(timeoutMs = 1000): Promise<InteractiveExecResult> {
     const startTime = Date.now();
 
-    if (!this.isAlive()) {
+    if (!this.checkAlive()) {
       // Drain-before-reject: a fast-exiting command (e.g. "exit") can flip
       // _state to TERMINATED between sendCommand and readOutput because
       // sendCommand is synchronous and the event loop runs onExit at the
@@ -282,7 +288,7 @@ export class InteractiveSession {
     return {
       sessionId: this.sessionId,
       createdAt: this.createdAt.toISOString(),
-      isAlive: this.isAlive(),
+      isAlive: this.checkAlive(),
       commandCount: this.commandCount,
       bufferSize: this.outputBuffer.size,
       uptimeSeconds: uptime,
@@ -456,7 +462,7 @@ export class InteractiveSession {
     return {
       session_id: this.sessionId,
       state: this._state,
-      is_alive: this.isAlive(),
+      is_alive: this.checkAlive(),
       created_at: this.createdAt.toISOString(),
       last_activity: this.lastActivity.toISOString(),
       uptime_seconds: uptimeSeconds,

@@ -259,7 +259,7 @@ export class OpenROADManager {
   private _countActive(): number {
     let count = 0;
     for (const session of this.sessions.values()) {
-      if (session !== null && session.isAlive()) count++;
+      if (session !== null && session.checkAlive()) count++;
     }
     return count;
   }
@@ -292,7 +292,7 @@ export class OpenROADManager {
     const terminated: Array<[string, InteractiveSession, boolean]> = [];
 
     for (const [sessionId, session] of this._initializedSessions()) {
-      if (!session.isAlive()) {
+      if (!session.checkAlive()) {
         // Measure from the actual death time. lastActivity is the last command,
         // which for a long-idle session is far earlier and would trip the
         // force-cleanup timer immediately. Fall back to lastActivity only if the

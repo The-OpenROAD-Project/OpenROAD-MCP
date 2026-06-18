@@ -16,7 +16,7 @@ vi.mock("../../src/interactive/session.js", () => {
 interface MockSession {
   sessionId: string;
   lastActivity: Date;
-  isAlive: Mock;
+  checkAlive: Mock;
   start: Mock;
   sendCommand: Mock;
   readOutput: Mock;
@@ -47,7 +47,7 @@ function makeMockSession(sessionId: string, alive = true): MockSession {
   return {
     sessionId,
     lastActivity: new Date(),
-    isAlive: vi.fn().mockReturnValue(alive),
+    checkAlive: vi.fn().mockReturnValue(alive),
     start: vi.fn().mockResolvedValue(undefined),
     sendCommand: vi.fn().mockResolvedValue(undefined),
     readOutput: vi.fn().mockResolvedValue({

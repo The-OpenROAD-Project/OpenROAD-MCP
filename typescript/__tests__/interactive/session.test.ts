@@ -40,7 +40,7 @@ describe("InteractiveSession", () => {
       expect(session.sessionId).toBe("test-session-1");
       expect(session.state).toBe(SessionState.CREATING);
       expect(session.commandCount).toBe(0);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
       expect(session.pty).not.toBeNull();
       expect(session.outputBuffer).not.toBeNull();
     });
@@ -256,17 +256,17 @@ describe("InteractiveSession", () => {
     });
   });
 
-  describe("isAlive", () => {
+  describe("checkAlive", () => {
     it("returns false in CREATING state", () => {
       expect(session.state).toBe(SessionState.CREATING);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
 
     it("returns false in ACTIVE state when process is dead", () => {
       session.state = SessionState.ACTIVE;
       (mockPty.isProcessAlive as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
       expect(session.state).toBe(SessionState.TERMINATED);
     });
 
@@ -287,13 +287,13 @@ describe("InteractiveSession", () => {
       session.state = SessionState.ACTIVE;
       (mockPty.isProcessAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
-      expect(session.isAlive()).toBe(true);
+      expect(session.checkAlive()).toBe(true);
       expect(session.state).toBe(SessionState.ACTIVE);
     });
 
     it("returns false in TERMINATED state", () => {
       session.state = SessionState.TERMINATED;
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
   });
 
@@ -437,7 +437,7 @@ describe("InteractiveSession", () => {
       await new Promise<void>((r) => setTimeout(r, 5));
 
       expect(session.state).toBe(SessionState.TERMINATED);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
 
     it("onData data exactly at READ_CHUNK_SIZE is a single append, not sliced", async () => {
@@ -542,7 +542,7 @@ describe("InteractiveSession", () => {
 
       expect(mockPty.writeInput).toHaveBeenCalled();
       expect(session.state).toBe(SessionState.TERMINATED);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
 
     it("subsequent sendCommand throws SessionTerminatedError after writer failure", async () => {
