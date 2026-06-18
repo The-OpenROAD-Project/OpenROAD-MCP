@@ -5,10 +5,9 @@ function camelToSnakeKey(key: string): string {
 }
 
 /**
- * Recursively converts camelCase object keys to snake_case.
- * Idempotent on already-snake_case strings (no uppercase → no change),
- * so opaque snake_case payloads (SessionDetailedMetrics, ManagerMetrics,
- * CommandHistoryEntry) pass through unchanged.
+ * Recursively convert camelCase object keys to snake_case. Idempotent on
+ * already-snake_case keys, so opaque snake_case payloads pass through
+ * unchanged.
  */
 export function toSnakeCase(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(toSnakeCase);
@@ -24,11 +23,9 @@ export function toSnakeCase(value: unknown): unknown {
 }
 
 /**
- * Base class for all MCP tool implementations.
- *
- * Provides the manager dependency and a serialization helper that converts the
- * camelCase domain model to the snake_case MCP wire format in one place.
- * Each subclass declares its own typed execute() signature.
+ * Base class for MCP tool implementations. Provides the manager dependency
+ * and a serialization helper that converts the camelCase domain model to the
+ * snake_case wire format.
  */
 export abstract class BaseTool {
   protected constructor(protected readonly manager: OpenROADManager) {}

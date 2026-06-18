@@ -25,17 +25,12 @@ import { BaseTool, toSnakeCase } from "./base.js";
 
 const logger = getLogger("tools.interactive");
 
-// ---------------------------------------------------------------------------
-// Module-level helpers
-// ---------------------------------------------------------------------------
-
-/** Emulate Python's repr() for simple strings: single-quoted with escaping. */
+/** Single-quoted Python-style repr for embedding strings in error messages. */
 function pyRepr(s: string): string {
   const escaped = s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   return `'${escaped}'`;
 }
 
-/** Build a blank InteractiveExecResult skeleton for error paths. */
 function blankExecResult(
   sessionId: string | null,
   error: string,
@@ -51,10 +46,6 @@ function blankExecResult(
   };
 }
 
-/**
- * Returns an InteractiveExecResult representing a session-not-found condition.
- * Error message matches the Python server byte-for-byte.
- */
 function sessionNotFoundExecResult(
   sessionId: string | null,
   error: unknown,
@@ -70,10 +61,6 @@ function sessionNotFoundExecResult(
   };
 }
 
-/**
- * Build and serialize a blocked-command result.
- * Matches Python's _blocked_error() output exactly, including repr() quoting.
- */
 function blockedError(
   command: string,
   blockedVerb: string,
@@ -93,9 +80,8 @@ function blockedError(
 }
 
 /**
- * Gate a command through the Tcl whitelist when WHITELIST_ENABLED is set.
- * Returns a serialised blocked-error JSON string when the command is rejected,
- * or null when it is allowed (or when the whitelist is disabled).
+ * Returns a serialised blocked-error JSON string when the command is rejected
+ * by the Tcl whitelist, or null when it is allowed or the whitelist is off.
  */
 function applyWhitelist(
   command: string,
@@ -113,10 +99,6 @@ function applyWhitelist(
   }
   return null;
 }
-
-// ---------------------------------------------------------------------------
-// Tool classes
-// ---------------------------------------------------------------------------
 
 /** Read-only query tool: report_*, get_*, check_*, sta, help, version, etc. */
 export class QueryShellTool extends BaseTool {
@@ -146,8 +128,8 @@ export class QueryShellTool extends BaseTool {
       );
       return this.formatResult(result as unknown as Record<string, unknown>);
     } catch (e) {
-      // Auto-created sessions must be cleaned up when executeCommand throws to
-      // avoid leaking the session.
+      // Tear down an auto-created session so executeCommand failures do not
+      // leak it.
       if (sid === null && resolvedId !== null) {
         this.manager.terminateSession(resolvedId, true).catch(() => { /* best effort */ });
       }
@@ -234,7 +216,6 @@ export class ExecShellTool extends BaseTool {
   }
 }
 
-/** Lists all active and terminated sessions tracked by the manager. */
 export class ListSessionsTool extends BaseTool {
   constructor(manager: OpenROADManager) {
     super(manager);
@@ -261,7 +242,6 @@ export class ListSessionsTool extends BaseTool {
   }
 }
 
-/** Creates a new OpenROAD interactive session. */
 export class CreateSessionTool extends BaseTool {
   constructor(manager: OpenROADManager) {
     super(manager);
@@ -299,7 +279,6 @@ export class CreateSessionTool extends BaseTool {
   }
 }
 
-/** Terminates an existing session by ID. */
 export class TerminateSessionTool extends BaseTool {
   constructor(manager: OpenROADManager) {
     super(manager);
@@ -347,7 +326,6 @@ export class TerminateSessionTool extends BaseTool {
   }
 }
 
-/** Returns detailed metrics for a single session. */
 export class InspectSessionTool extends BaseTool {
   constructor(manager: OpenROADManager) {
     super(manager);
@@ -381,7 +359,6 @@ export class InspectSessionTool extends BaseTool {
   }
 }
 
-/** Returns the command history for a session, with optional limit and search. */
 export class SessionHistoryTool extends BaseTool {
   constructor(manager: OpenROADManager) {
     super(manager);
@@ -422,7 +399,6 @@ export class SessionHistoryTool extends BaseTool {
   }
 }
 
-/** Returns aggregate metrics across all sessions managed by the manager. */
 export class SessionMetricsTool extends BaseTool {
   constructor(manager: OpenROADManager) {
     super(manager);
@@ -447,5 +423,4 @@ export class SessionMetricsTool extends BaseTool {
   }
 }
 
-// Backwards-compat alias matching Python's InteractiveShellTool = QueryShellTool
 export const InteractiveShellTool = QueryShellTool;

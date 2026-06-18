@@ -27,13 +27,9 @@ export interface CreateSessionOptions {
 /**
  * Manages OpenROAD subprocess lifecycle and interactive sessions.
  *
- * Node.js is single-threaded, so no reentrant lock is needed for plain state
- * access (Python used asyncio.Lock + the GIL). The async-mutex `cleanupLock`
- * serialises the multi-await cleanup/creation sections so concurrent callers
- * cannot interleave session-map mutations across await points.
- *
- * The module exports a shared `manager` singleton; the class is exported too so
- * tests can construct isolated instances.
+ * The async-mutex `cleanupLock` serialises the multi-await cleanup/creation
+ * sections so concurrent callers cannot interleave session-map mutations
+ * across await points.
  */
 export class OpenROADManager {
   private readonly logger = getLogger("manager");
@@ -73,8 +69,8 @@ export class OpenROADManager {
       this.sessions.set(sessionId, null);
 
       try {
-        // Match Python's `buffer_size or default`: 0 (and undefined) fall back
-        // to the default so a zero-capacity buffer can't silently drop all output.
+        // 0 (and undefined) fall back to the default so a zero-capacity buffer
+        // can't silently drop all output.
         const bufferSize = opts.bufferSize && opts.bufferSize > 0 ? opts.bufferSize : this.defaultBufferSize;
         const session = new InteractiveSession(sessionId, bufferSize);
         await session.start(opts.command, opts.env, opts.cwd);
@@ -92,8 +88,8 @@ export class OpenROADManager {
 
   async executeCommand(sessionId: string, command: string, timeoutMs?: number): Promise<InteractiveExecResult> {
     const session = this._getSession(sessionId);
-    // Match Python's `timeout_ms or default`: 0 (and undefined) fall back to the
-    // configured default rather than becoming an instant timeout.
+    // 0 (and undefined) fall back to the default rather than becoming an
+    // instant timeout.
     const actualTimeout = timeoutMs && timeoutMs > 0 ? timeoutMs : this.defaultTimeoutMs;
 
     await session.sendCommand(command);
@@ -121,8 +117,7 @@ export class OpenROADManager {
   async terminateSession(sessionId: string, force = false): Promise<void> {
     const session = this._getSession(sessionId);
 
-    // terminate() already tears down the PTY and stops the writer task. We do
-    // not also call cleanup() here: cleanup() clears the output buffer, which
+    // Do not call cleanup() here: cleanup() clears the output buffer, which
     // would discard final output a concurrent reader may still need. The
     // session is dropped from the map below, so its buffer is GC'd anyway.
     await session.terminate(force);
@@ -134,9 +129,9 @@ export class OpenROADManager {
   }
 
   async terminateAllSessions(force = false): Promise<number> {
-    // Only initialized sessions are terminable. Null placeholders belong to an
-    // in-flight createSession (which resolves or removes them itself), so
-    // terminating them would throw "still being created" and be lost.
+    // Skip null placeholders: they belong to an in-flight createSession
+    // (which resolves or removes them itself), so terminating them would
+    // throw "still being created" and be lost.
     const sessionIds = this._initializedSessions().map(([sid]) => sid);
     if (sessionIds.length === 0) return 0;
 
@@ -189,8 +184,8 @@ export class OpenROADManager {
       }
     }
 
-    // Capture counts after the async loop so the snapshot reflects the final
-    // state rather than a stale pre-loop value.
+    // Snapshot counts after the async loop so the result reflects the
+    // post-cleanup state.
     const totalSessions = this.sessions.size;
     const activeSessions = this.getActiveSessionCount();
     const terminatedSessions = totalSessions - activeSessions;
@@ -243,8 +238,6 @@ export class OpenROADManager {
     return this._countActive();
   }
 
-  // internals
-
   private _countActive(): number {
     let count = 0;
     for (const session of this.sessions.values()) {
@@ -282,10 +275,9 @@ export class OpenROADManager {
 
     for (const [sessionId, session] of this._initializedSessions()) {
       if (!session.checkAlive()) {
-        // Measure from the actual death time. lastActivity is the last command,
-        // which for a long-idle session is far earlier and would trip the
-        // force-cleanup timer immediately. Fall back to lastActivity only if the
-        // death timestamp is somehow unset.
+        // Measure from death time, not lastActivity: a long-idle session
+        // dies far after its last command, which would trip force-cleanup
+        // immediately.
         const deathTime = (session.terminatedAt ?? session.lastActivity).getTime();
         const timeSinceDeath = (now - deathTime) / 1000;
         terminated.push([sessionId, session, timeSinceDeath > FORCE_CLEANUP_AFTER_SECONDS]);
@@ -329,5 +321,4 @@ export class OpenROADManager {
   }
 }
 
-/** Shared process-wide manager instance used by the MCP tools. */
 export const manager = new OpenROADManager();

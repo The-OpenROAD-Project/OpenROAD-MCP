@@ -10,10 +10,7 @@ import {
 } from "../../src/tools/report_images.js";
 import type { OpenROADManager } from "../../src/core/manager.js";
 
-// ---------------------------------------------------------------------------
-// Mock getSettings so tests don't depend on the filesystem ORFS installation
-// ---------------------------------------------------------------------------
-
+// Mock getSettings so tests do not depend on a filesystem ORFS install.
 vi.mock("../../src/config/settings.js", () => {
   let mockFlowPath = "/mock/flow";
   let mockPlatforms: string[] = [];
@@ -47,10 +44,6 @@ vi.mock("../../src/config/settings.js", () => {
 
 import { getSettings } from "../../src/config/settings.js";
 
-// ---------------------------------------------------------------------------
-// Fixture helpers
-// ---------------------------------------------------------------------------
-
 let tmpDir: string;
 
 function createFixture(
@@ -60,10 +53,8 @@ function createFixture(
   imageFiles: string[] = ["cts_clk.webp", "final_all.webp"],
 ) {
   const flowPath = tmpDir;
-  // Settings directories (used by platforms / designs accessors)
   fs.mkdirSync(path.join(flowPath, "platforms", platform), { recursive: true });
   fs.mkdirSync(path.join(flowPath, "designs", platform, design), { recursive: true });
-  // Reports directory
   const runPath = path.join(flowPath, "reports", platform, design, runSlug);
   fs.mkdirSync(runPath, { recursive: true });
   for (const img of imageFiles) {
@@ -72,10 +63,8 @@ function createFixture(
   return { flowPath, runPath };
 }
 
-// Stub manager (tools don't call manager methods directly, but constructor requires it)
+// Constructor requires a manager but the tools never invoke it.
 const stubManager = {} as unknown as OpenROADManager;
-
-// ---------------------------------------------------------------------------
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openroad-test-"));
@@ -85,10 +74,6 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
   vi.clearAllMocks();
 });
-
-// ---------------------------------------------------------------------------
-// classifyImageType
-// ---------------------------------------------------------------------------
 
 describe("classifyImageType", () => {
   it("classifies CTS images correctly", () => {
@@ -114,10 +99,6 @@ describe("classifyImageType", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// validatePlatformDesign
-// ---------------------------------------------------------------------------
-
 describe("validatePlatformDesign", () => {
   it("throws on unknown platform", () => {
     (getSettings as ReturnType<typeof vi.fn>).mockReturnValueOnce({
@@ -137,10 +118,6 @@ describe("validatePlatformDesign", () => {
     expect(() => validatePlatformDesign("nangate45", "bad_design")).toThrow();
   });
 });
-
-// ---------------------------------------------------------------------------
-// ListReportImagesTool
-// ---------------------------------------------------------------------------
 
 describe("ListReportImagesTool", () => {
   let tool: ListReportImagesTool;
@@ -174,7 +151,7 @@ describe("ListReportImagesTool", () => {
   });
 
   it("returns totalImages 0 when run directory has no .webp files", async () => {
-    const { flowPath, runPath } = createFixture("nangate45", "gcd", "run-empty", []);
+    const { flowPath } = createFixture("nangate45", "gcd", "run-empty", []);
     (getSettings as ReturnType<typeof vi.fn>).mockReturnValue({
       platforms: ["nangate45"],
       designs: (p: string) => (p === "nangate45" ? ["gcd"] : []),
@@ -221,10 +198,6 @@ describe("ListReportImagesTool", () => {
     expect(result.images_by_stage).not.toHaveProperty("final");
   });
 });
-
-// ---------------------------------------------------------------------------
-// ReadReportImageTool
-// ---------------------------------------------------------------------------
 
 describe("ReadReportImageTool", () => {
   let tool: ReadReportImageTool;
@@ -281,13 +254,10 @@ describe("ReadReportImageTool", () => {
     });
     const raw = await tool.execute("nangate45", "gcd", "run-123", "cts_clk.webp");
     const result = JSON.parse(raw);
-    // Should have image_data as a base64 string
     expect(typeof result.image_data).toBe("string");
     expect(result.image_data.length).toBeGreaterThan(0);
-    // Round-trip check
     const decoded = Buffer.from(result.image_data, "base64");
     expect(decoded.length).toBeGreaterThan(0);
-    // Metadata presence
     expect(result.metadata).toBeTruthy();
     expect(result.metadata.filename).toBe("cts_clk.webp");
     expect(result.metadata.stage).toBe("cts");
@@ -296,7 +266,6 @@ describe("ReadReportImageTool", () => {
 
   it("returns FileTooLarge error when image exceeds 50 MB", async () => {
     const { flowPath, runPath } = createFixture("nangate45", "gcd", "run-123", []);
-    // Write a "file" that appears to be 51 MB by mocking statSync
     const bigPath = path.join(runPath, "huge.webp");
     fs.writeFileSync(bigPath, Buffer.from("tiny content"));
     (getSettings as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -329,10 +298,6 @@ describe("ReadReportImageTool", () => {
     expect(result.error).toBe("InvalidImageName");
   });
 });
-
-// ---------------------------------------------------------------------------
-// TestPathTraversalSecurity
-// ---------------------------------------------------------------------------
 
 describe("TestPathTraversalSecurity", () => {
   let tool: ListReportImagesTool;
@@ -390,26 +355,21 @@ describe("TestPathTraversalSecurity", () => {
   });
 
   it("blocks symlink escape from run directory", async () => {
-    // Create a symlink inside run-123 that points outside
     const runPath = path.join(flowPath, "reports", "nangate45", "gcd", "run-123");
     const linkPath = path.join(runPath, "escape.webp");
     try {
       fs.symlinkSync("/etc/passwd", linkPath);
     } catch {
-      // symlink creation may fail in some environments — skip gracefully
+      // symlink creation may fail in some environments; skip gracefully.
       return;
     }
     const raw = await readTool.execute("nangate45", "gcd", "run-123", "escape.webp");
     const result = JSON.parse(raw);
-    // Should either not find the image, reject path containment, or return an error
-    // — but must NOT return valid image_data that resolves to /etc/passwd content
+    // Should not find the image, reject path containment, or return an error
+    // and must NOT return valid image_data resolving to /etc/passwd content.
     expect(result.image_data === null || result.error !== null).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// TestPlatformDesignValidationInTools
-// ---------------------------------------------------------------------------
 
 describe("TestPlatformDesignValidationInTools", () => {
   beforeEach(() => {

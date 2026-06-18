@@ -1,19 +1,17 @@
 import stripAnsi from "strip-ansi";
 
+// Specific private-mode codes are listed before the generic private-mode
+// catch-all so they match first. The `?` in the generic patterns is escaped,
+// preventing single-char escapes like \x1bh from matching there.
 const ESCAPE_SEQUENCES: Record<string, string> = {
-  // Private mode sequences (DECSET/DECRST). Specific codes are listed first so
-  // they match before the generic private-mode catch-all below.
   "\\x1b\\[\\?2004h": "Enable bracketed paste mode",
   "\\x1b\\[\\?2004l": "Disable bracketed paste mode",
   "\\x1b\\[\\?1049h": "Enable alternative screen buffer",
   "\\x1b\\[\\?1049l": "Disable alternative screen buffer",
   "\\x1b\\[\\?25h": "Show cursor",
   "\\x1b\\[\\?25l": "Hide cursor",
-  // Generic private-mode set/reset. The `?` is escaped so `[?` is mandatory,
-  // preventing single-char escapes like \x1bh / \x1bl from matching here.
   "\\x1b\\[\\?\\d*h": "Enable terminal mode",
   "\\x1b\\[\\?\\d*l": "Disable terminal mode",
-  // Cursor movement
   "\\x1b\\[\\d*A": "Move cursor up",
   "\\x1b\\[\\d*B": "Move cursor down",
   "\\x1b\\[\\d*C": "Move cursor right",
@@ -26,7 +24,6 @@ const ESCAPE_SEQUENCES: Record<string, string> = {
   "\\x1b\\[0K": "Clear line from cursor to end",
   "\\x1b\\[1K": "Clear line from start to cursor",
   "\\x1b\\[2K": "Clear entire line",
-  // Text formatting
   "\\x1b\\[0m": "Reset all formatting",
   "\\x1b\\[1m": "Bold text",
   "\\x1b\\[2m": "Dim text",
@@ -36,7 +33,6 @@ const ESCAPE_SEQUENCES: Record<string, string> = {
   "\\x1b\\[7m": "Reverse video",
   "\\x1b\\[8m": "Hidden text",
   "\\x1b\\[9m": "Strikethrough text",
-  // Colors (foreground)
   "\\x1b\\[30m": "Black text",
   "\\x1b\\[31m": "Red text",
   "\\x1b\\[32m": "Green text",
@@ -45,7 +41,6 @@ const ESCAPE_SEQUENCES: Record<string, string> = {
   "\\x1b\\[35m": "Magenta text",
   "\\x1b\\[36m": "Cyan text",
   "\\x1b\\[37m": "White text",
-  // Colors (background)
   "\\x1b\\[40m": "Black background",
   "\\x1b\\[41m": "Red background",
   "\\x1b\\[42m": "Green background",
@@ -56,21 +51,17 @@ const ESCAPE_SEQUENCES: Record<string, string> = {
   "\\x1b\\[47m": "White background",
 };
 
-// Matches the common ANSI escape sequence families so that non-CSI sequences
-// (OSC, charset designation, single/two-char escapes) are detected in every
-// mode rather than leaking through as raw bytes. Order matters: longer/anchored
-// alternatives come first so they win at a given match position.
-//   1. OSC:            ESC ] ... (BEL | ST)
-//   2. CSI:            ESC [ params final
-//   3. Charset/desig.: ESC ( | ) | # <char>
+// Order matters: longer/anchored alternatives come first so they win at a
+// given match position.
+//   1. OSC:             ESC ] ... (BEL | ST)
+//   2. CSI:             ESC [ params final
+//   3. Charset/desig.:  ESC ( | ) | # <char>
 //   4. Single/two-char: ESC <char>
 const ESCAPE_PATTERN =
   /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[a-zA-Z]|\x1b[()#][0-9A-Za-z]|\x1b[=>NMcDEH78]/g;
 
 const VALID_MODES = ["remove", "annotate", "preserve", "decode"];
 
-// Pre-compile the escape-sequence patterns once at module load instead of
-// allocating ~45 RegExp objects on every decodeEscapeSequence() call.
 const COMPILED_SEQUENCES: Array<[RegExp, string]> = Object.entries(ESCAPE_SEQUENCES).map(
   ([pattern, description]) => [new RegExp(`^${pattern}`), description],
 );
@@ -115,9 +106,8 @@ export class ANSIDecoder {
     if (mode === "annotate") {
       let result = text;
       for (const seq of new Set(sequences)) {
-        // Function replacement: the value is inserted literally, so `$&`/`$1`
-        // inside an OSC sequence body cannot be reinterpreted as a replacement
-        // pattern and corrupt the output.
+        // Use a function replacement so `$&`/`$1` inside an OSC sequence
+        // body cannot be reinterpreted as a replacement pattern.
         const annotation = `[${ANSIDecoder.decodeEscapeSequence(seq)}]`;
         result = result.replaceAll(seq, () => annotation);
       }

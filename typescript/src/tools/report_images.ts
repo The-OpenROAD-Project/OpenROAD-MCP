@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import type { OpenROADManager } from "../core/manager.js";
@@ -20,16 +19,8 @@ import { BaseTool } from "./base.js";
 
 const logger = getLogger("tools.report_images");
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const MAX_BASE64_SIZE_KB = 15;
 const MAX_IMAGE_SIZE_MB = 50;
-
-// ---------------------------------------------------------------------------
-// Image type mapping (exact copy of Python dict)
-// ---------------------------------------------------------------------------
 
 const IMAGE_TYPE_MAPPING: Record<string, string> = {
   cts_clk: "clock_visualization",
@@ -45,13 +36,9 @@ const IMAGE_TYPE_MAPPING: Record<string, string> = {
   final_routing: "routing_visualization",
 };
 
-// ---------------------------------------------------------------------------
-// Helper functions
-// ---------------------------------------------------------------------------
-
 /**
- * Derive the image stage and semantic type from a filename.
- * Returns ["unknown", "unknown"] for files with no underscore or unrecognised keys.
+ * Derive the image stage and semantic type from a filename. Returns
+ * ["unknown", "unknown"] for files with no underscore or unrecognised keys.
  */
 export function classifyImageType(filename: string): [string, string] {
   const basename = path.basename(filename, path.extname(filename));
@@ -69,10 +56,6 @@ export function classifyImageType(filename: string): [string, string] {
   return [stage, type];
 }
 
-/**
- * Verify that `platform` and `design` are known in the current ORFS configuration.
- * Throws ValidationError when either is not found.
- */
 export function validatePlatformDesign(platform: string, design: string): void {
   const settings = getSettings();
   const platforms = settings.platforms;
@@ -89,10 +72,6 @@ export function validatePlatformDesign(platform: string, design: string): void {
   }
 }
 
-/**
- * Resolve and validate the reports base path and per-run sub-directory.
- * Returns [reportsBase, runPath] as absolute path strings.
- */
 function resolveRunPath(
   platform: string,
   design: string,
@@ -107,7 +86,6 @@ function resolveRunPath(
   return [reportsBase, runPath];
 }
 
-/** List available run slugs in reportsBase for error messages. */
 function availableRuns(reportsBase: string): string[] {
   try {
     return fs
@@ -119,16 +97,13 @@ function availableRuns(reportsBase: string): string[] {
   }
 }
 
-/**
- * Recursively find all .webp files under `dir`, returning absolute paths.
- * Requires Node.js ≥ 20 for the `recursive` option on readdirSync.
- */
+/** Requires Node.js 20+ for the `recursive` option on readdirSync. */
 function findWebpFiles(dir: string): string[] {
   const entries = fs.readdirSync(dir, { recursive: true, withFileTypes: true });
   return entries
     .filter((e) => e.isFile() && e.name.endsWith(".webp"))
     .map((e) => {
-      // `parentPath` is available in Node 20.12+; `path` is the older alias.
+      // `parentPath` is Node 20.12+; `path` is the older alias.
       const parent = (e as unknown as { parentPath?: string; path?: string })
         .parentPath ?? (e as unknown as { path: string }).path;
       return path.join(parent, e.name);
@@ -147,9 +122,9 @@ interface CompressResult {
 }
 
 /**
- * Load an image and compress it to fit within `maxSizeKb` of base64 output.
- * Uses sharp for resizing (lanczos3) and WebP encoding (quality=85).
- * Falls back to returning raw bytes when sharp fails, with null dimensions.
+ * Compress an image to fit within `maxSizeKb` of base64 output using sharp
+ * (lanczos3 resize, WebP quality 85). Falls back to raw bytes with null
+ * dimensions when sharp fails.
  */
 async function loadAndCompressImage(
   imagePath: string,
@@ -226,10 +201,6 @@ async function loadAndCompressImage(
     };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Tool classes
-// ---------------------------------------------------------------------------
 
 /** Lists .webp report images for a specific platform/design/run. */
 export class ListReportImagesTool extends BaseTool {
@@ -316,7 +287,6 @@ export class ListReportImagesTool extends BaseTool {
         total++;
       }
 
-      // Sort each stage bucket by filename
       for (const key of Object.keys(imagesByStage)) {
         imagesByStage[key] = (imagesByStage[key] as Array<{ filename: string }>).sort((a, b) =>
           a.filename.localeCompare(b.filename),

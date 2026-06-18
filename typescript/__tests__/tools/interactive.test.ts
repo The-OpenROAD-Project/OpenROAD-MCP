@@ -6,10 +6,6 @@ import { SessionNotFoundError, SessionTerminatedError, SessionError } from "../.
 import { SessionState } from "../../src/core/models.js";
 import type { InteractiveExecResult, InteractiveSessionInfo, SessionDetailedMetrics, ManagerMetrics } from "../../src/core/models.js";
 
-// ---------------------------------------------------------------------------
-// Mock helpers
-// ---------------------------------------------------------------------------
-
 const NOW = "2024-01-01T00:00:00.000Z";
 
 function makeExecResult(overrides: Partial<InteractiveExecResult> = {}): InteractiveExecResult {
@@ -87,10 +83,6 @@ function makeMockManager(): MockManager {
   };
 }
 
-// ---------------------------------------------------------------------------
-// QueryShellTool
-// ---------------------------------------------------------------------------
-
 describe("QueryShellTool", () => {
   let mgr: MockManager;
   let tool: QueryShellTool;
@@ -149,7 +141,6 @@ describe("QueryShellTool", () => {
   });
 
   it("blocks dangerous commands when whitelist is enabled", async () => {
-    // `quit` is in BLOCKED_COMMANDS
     const raw = await tool.execute("quit");
     const result = JSON.parse(raw);
     expect(result.error).toMatch(/CommandBlocked/);
@@ -160,10 +151,6 @@ describe("QueryShellTool", () => {
     expect(InteractiveShellTool).toBe(QueryShellTool);
   });
 });
-
-// ---------------------------------------------------------------------------
-// ExecShellTool
-// ---------------------------------------------------------------------------
 
 describe("ExecShellTool", () => {
   let mgr: MockManager;
@@ -194,10 +181,6 @@ describe("ExecShellTool", () => {
     expect(result.output).toContain("not found");
   });
 });
-
-// ---------------------------------------------------------------------------
-// ListSessionsTool
-// ---------------------------------------------------------------------------
 
 describe("ListSessionsTool", () => {
   let mgr: MockManager;
@@ -238,10 +221,6 @@ describe("ListSessionsTool", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// CreateSessionTool
-// ---------------------------------------------------------------------------
-
 describe("CreateSessionTool", () => {
   let mgr: MockManager;
   let tool: CreateSessionTool;
@@ -277,10 +256,6 @@ describe("CreateSessionTool", () => {
     expect(result.error).toContain("limit reached");
   });
 });
-
-// ---------------------------------------------------------------------------
-// TerminateSessionTool
-// ---------------------------------------------------------------------------
 
 describe("TerminateSessionTool", () => {
   let mgr: MockManager;
@@ -325,10 +300,6 @@ describe("TerminateSessionTool", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// InspectSessionTool
-// ---------------------------------------------------------------------------
-
 describe("InspectSessionTool", () => {
   let mgr: MockManager;
   let tool: InspectSessionTool;
@@ -362,10 +333,6 @@ describe("InspectSessionTool", () => {
     expect(result.error).toContain("Inspection failed");
   });
 });
-
-// ---------------------------------------------------------------------------
-// SessionHistoryTool
-// ---------------------------------------------------------------------------
 
 describe("SessionHistoryTool", () => {
   let mgr: MockManager;
@@ -410,10 +377,6 @@ describe("SessionHistoryTool", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// SessionMetricsTool
-// ---------------------------------------------------------------------------
-
 describe("SessionMetricsTool", () => {
   let mgr: MockManager;
   let tool: SessionMetricsTool;
@@ -440,12 +403,8 @@ describe("SessionMetricsTool", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Integration: full workflow
-// ---------------------------------------------------------------------------
-
 describe("Integration: session workflow", () => {
-  it("create → execute → list → terminate", async () => {
+  it("create, execute, list, terminate", async () => {
     const mgr = makeMockManager();
     mgr.listSessions.mockResolvedValue([makeSessionInfo()]);
 
@@ -476,9 +435,7 @@ describe("Integration: session workflow", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Snapshot: one representative output per tool
-// ---------------------------------------------------------------------------
 
 describe("Snapshots: wire format stability", () => {
   it("QueryShellTool success output", async () => {

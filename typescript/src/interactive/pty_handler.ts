@@ -15,7 +15,6 @@ export class PtyHandler {
 
   constructor(private readonly _settings: Settings = getSettings()) {}
 
-  /** PID of the underlying PTY process, or null if no process is active. */
   get pid(): number | null {
     return this._ptyProcess?.pid ?? null;
   }
@@ -89,9 +88,9 @@ export class PtyHandler {
       this._alive = true;
       this._exitCode = null;
 
-      // Register the exit handler before onData so a fast-exiting process can
-      // never slip its exit event through before we are listening. The guard
-      // keeps the handler idempotent against a double-delivered exit.
+      // Register exit before onData so a fast-exiting process cannot slip
+      // its exit event through before we are listening. The guard keeps the
+      // handler idempotent against a double-delivered exit.
       this._exitDisposable = this._ptyProcess.onExit(({ exitCode }) => {
         if (!this._alive && this._exitCode !== null) return;
         this._alive = false;
@@ -123,8 +122,8 @@ export class PtyHandler {
 
   isProcessAlive(): boolean {
     if (!this._alive || !this._ptyProcess) return false;
-    // Defensive liveness probe: if the exit event was somehow missed, signal 0
-    // detects a dead/reaped pid (ESRCH) so `_alive` cannot stay true forever.
+    // Defensive liveness probe in case the exit event was missed; signal 0
+    // detects a dead/reaped pid via ESRCH.
     try {
       process.kill(this._ptyProcess.pid, 0);
       return true;
@@ -135,8 +134,6 @@ export class PtyHandler {
   }
 
   async waitForExit(timeoutMs?: number): Promise<number | null> {
-    // Check the recorded exit code first so callers that arrive after cleanup()
-    // still get the real code rather than null.
     if (this._exitCode !== null) return this._exitCode;
     if (!this._ptyProcess) return null;
 
@@ -191,7 +188,7 @@ export class PtyHandler {
       try {
         await this.terminateProcess(true);
       } catch {
-        // Best effort - don't let terminate errors prevent state reset
+        // best effort
       }
     }
 
@@ -205,7 +202,7 @@ export class PtyHandler {
     this._alive = false;
     this._dataDisposable = null;
     this._exitDisposable = null;
-    // Keep _exitCode so a late waitForExit() caller still sees the real exit
-    // code. createSession() resets it to null when the handler is reused.
+    // Preserve _exitCode so a late waitForExit() caller still sees the real
+    // exit code; createSession() resets it on reuse.
   }
 }

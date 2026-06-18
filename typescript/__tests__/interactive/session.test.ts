@@ -217,7 +217,6 @@ describe("InteractiveSession", () => {
       await session.outputBuffer.append("% Exiting OpenROAD\r\n");
       session.state = SessionState.TERMINATED;
 
-      // Must NOT throw even though the session is terminated
       const result = await session.readOutput(100);
 
       expect(result.output).toContain("Exiting OpenROAD");
@@ -227,8 +226,8 @@ describe("InteractiveSession", () => {
 
     it("signals shutdown when readOutput detects terminated session so writer task does not loop indefinitely", async () => {
       // Spy on the private method to verify readOutput() calls it directly.
-      // Scenario: _state was flipped to TERMINATED externally (e.g. via the setter)
-      // without calling _signalShutdown() — the exact gap @luarss identified.
+      // Scenario: _state was flipped to TERMINATED externally (e.g. via the
+      // setter) without calling _signalShutdown().
       const signalShutdown = vi.spyOn(session as unknown as { _signalShutdown: () => void }, "_signalShutdown");
 
       session.state = SessionState.TERMINATED;
@@ -327,12 +326,11 @@ describe("InteractiveSession", () => {
     it("calls pty.cleanup() so listeners and pending resolvers are disposed without a subsequent session.cleanup()", async () => {
       session.state = SessionState.ACTIVE;
 
-      // terminate() without any follow-up cleanup() call
       await session.terminate(false);
 
-      // pty.cleanup() must have been called to dispose _dataDisposable,
-      // _exitDisposable, and drain _exitResolvers — otherwise post-kill
-      // data bursts keep appending and waitForExit() callers hang forever
+      // pty.cleanup() must run to dispose _dataDisposable, _exitDisposable,
+      // and drain _exitResolvers; otherwise post-kill data bursts keep
+      // appending and waitForExit() callers hang forever.
       expect(mockPty.cleanup).toHaveBeenCalledOnce();
     });
   });
@@ -420,7 +418,6 @@ describe("InteractiveSession", () => {
       await session.start(["echo"]);
       session.state = SessionState.TERMINATED;
 
-      // Should not throw or double-signal shutdown
       capturedOnExit?.(0);
       expect(session.state).toBe(SessionState.TERMINATED);
     });
