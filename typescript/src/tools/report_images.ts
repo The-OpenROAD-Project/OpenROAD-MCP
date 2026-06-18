@@ -191,8 +191,11 @@ async function loadAndCompressImage(
     const targetBytes = Math.floor((maxSizeKb * 1024 * 3) / 4);
     const scale = Math.sqrt(targetBytes / originalSize);
     const meta = await sharp(imagePath).metadata();
-    const origW = meta.width ?? 0;
-    const origH = meta.height ?? 0;
+    if (!meta.width || !meta.height) {
+      throw new Error("Image dimensions unavailable");
+    }
+    const origW = meta.width;
+    const origH = meta.height;
     const newW = Math.max(Math.round(origW * scale), 256);
     const newH = Math.max(Math.round(origH * scale), 256);
     const compressed = await sharp(imagePath)
