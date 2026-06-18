@@ -189,7 +189,7 @@ export class PtyHandler {
   async cleanup(): Promise<void> {
     if (this._alive) {
       try {
-        await this.terminateProcess();
+        await this.terminateProcess(true);
       } catch {
         // Best effort - don't let terminate errors prevent state reset
       }
