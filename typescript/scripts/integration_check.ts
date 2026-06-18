@@ -38,7 +38,7 @@ async function run() {
     await session.start(["openroad", "-no_init"]);
     check("start() succeeds", true);
     check("state is ACTIVE after start", session.state === "active", session.state);
-    check("isAlive() returns true", session.isAlive());
+    check("isAlive() returns true", session.checkAlive());
     check("writer task running", session.isRunning());
   } catch (e) {
     check("start() succeeds", false, String(e));
@@ -98,7 +98,7 @@ async function run() {
   await session.cleanup();
   check("cleanup() does not throw", true);
   check("state is TERMINATED after cleanup", session.state === "terminated", session.state);
-  check("isAlive() returns false after cleanup", !session.isAlive());
+  check("isAlive() returns false after cleanup", !session.checkAlive());
 
   // ── Summary ─────────────────────────────────────────────────────────────────
   const passed = results.filter((r) => r.ok).length;
