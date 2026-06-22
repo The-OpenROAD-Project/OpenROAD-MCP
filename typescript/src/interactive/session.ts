@@ -366,26 +366,17 @@ export class InteractiveSession {
   }
 
   /** Sample CPU/memory from the live process. Best-effort; silently ignores a
-   * dead or inaccessible PID. CPU time is cumulative (assigned, not summed). */
-  private async _updatePerformanceMetrics(): Promise<void> {
+   * dead or inaccessible PID. CPU time is cumulative (assigned, not summed).
+   * Returns current memory MB so callers can avoid a second pidusage() call. */
+  private async _updatePerformanceMetrics(): Promise<number> {
     const pid = this.pty.pid;
-    if (pid == null) return;
+    if (pid == null) return 0;
     try {
       const usage = await pidusage(pid);
       this.totalCpuTime = usage.ctime / 1000;
       const currentMemoryMb = Math.max(0, usage.memory) / BYTES_TO_MB;
       this.peakMemoryMb = Math.max(this.peakMemoryMb, currentMemoryMb);
-    } catch {
-      // Process may have exited or be inaccessible.
-    }
-  }
-
-  private async _getCurrentMemoryMb(): Promise<number> {
-    const pid = this.pty.pid;
-    if (pid == null) return 0;
-    try {
-      const usage = await pidusage(pid);
-      return Math.max(0, usage.memory) / BYTES_TO_MB;
+      return currentMemoryMb;
     } catch {
       return 0;
     }
@@ -400,7 +391,7 @@ export class InteractiveSession {
   }
 
   async getDetailedMetrics(): Promise<SessionDetailedMetrics> {
-    await this._updatePerformanceMetrics();
+    const currentMemoryMb = await this._updatePerformanceMetrics();
     const now = Date.now();
     const uptimeSeconds = (now - this.createdAt.getTime()) / 1000;
     const idleSeconds = (now - this.lastActivity.getTime()) / 1000;
@@ -423,7 +414,7 @@ export class InteractiveSession {
       performance: {
         total_cpu_time: this.totalCpuTime,
         peak_memory_mb: this.peakMemoryMb,
-        current_memory_mb: await this._getCurrentMemoryMb(),
+        current_memory_mb: currentMemoryMb,
       },
       buffer: {
         current_size: bufferSize,
