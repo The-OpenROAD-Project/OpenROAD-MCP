@@ -24,8 +24,6 @@ authlib==1.7.2
     # via fastmcp
 beartype==0.22.9
     # via py-key-value-aio
-beautifulsoup4==4.14.3
-    # via openroad-mcp (pyproject.toml)
 cachetools==7.0.5
     # via py-key-value-aio
 caio==0.9.25
@@ -51,8 +49,8 @@ cryptography==49.0.0
     # via
     #   authlib
     #   google-auth
+    #   joserfc
     #   pyjwt
-    #   secretstorage
 cyclopts==4.10.1
     # via fastmcp
 distlib==0.4.0
@@ -110,10 +108,8 @@ jaraco-context==6.1.2
     # via keyring
 jaraco-functools==4.4.0
     # via keyring
-jeepney==0.9.0
-    # via
-    #   keyring
-    #   secretstorage
+joserfc==1.7.1
+    # via authlib
 jsonref==1.1.0
     # via fastmcp
 jsonschema==4.26.0
@@ -229,7 +225,6 @@ referencing==0.37.0
     #   jsonschema-specifications
 requests==2.33.1
     # via
-    #   openroad-mcp (pyproject.toml)
     #   google-auth
     #   google-genai
 rich==14.3.3
@@ -246,14 +241,10 @@ rpds-py==0.30.0
     #   referencing
 ruff==0.15.8
     # via openroad-mcp (pyproject.toml)
-secretstorage==3.5.0
-    # via keyring
 shellingham==1.5.4
     # via typer
 sniffio==1.3.1
     # via google-genai
-soupsieve==2.8.3
-    # via beautifulsoup4
 sse-starlette==3.3.4
     # via mcp
 starlette==1.3.1
@@ -266,11 +257,8 @@ typer==0.24.1
     # via mcp
 types-psutil==7.2.2.20260130
     # via openroad-mcp (pyproject.toml)
-types-requests==2.33.0.20260327
-    # via openroad-mcp (pyproject.toml)
 typing-extensions==4.15.0
     # via
-    #   beautifulsoup4
     #   google-genai
     #   mcp
     #   mypy
@@ -287,9 +275,7 @@ typing-inspection==0.4.2
 uncalled-for==0.2.0
     # via fastmcp
 urllib3==2.7.0
-    # via
-    #   requests
-    #   types-requests
+    # via requests
 uvicorn==0.42.0
     # via
     #   fastmcp
