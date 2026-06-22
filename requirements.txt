@@ -19,7 +19,7 @@ attrs==26.1.0
     #   cyclopts
     #   jsonschema
     #   referencing
-authlib==1.6.12
+authlib==1.7.2
     # via fastmcp
 beartype==0.22.9
     # via py-key-value-aio
@@ -37,7 +37,7 @@ click==8.3.1
     # via
     #   typer
     #   uvicorn
-cryptography==48.0.1
+cryptography==49.0.0
     # via
     #   authlib
     #   pyjwt
@@ -68,7 +68,7 @@ httpx==0.28.1
     #   mcp
 httpx-sse==0.4.3
     # via mcp
-idna==3.15
+idna==3.18
     # via
     #   anyio
     #   email-validator
@@ -134,7 +134,7 @@ pydantic==2.12.5
     #   pydantic-settings
 pydantic-core==2.41.5
     # via pydantic
-pydantic-settings==2.13.1
+pydantic-settings==2.14.2
     # via mcp
 pygments==2.20.0
     # via rich
@@ -147,7 +147,7 @@ python-dotenv==1.2.2
     #   fastmcp
     #   mcp
     #   pydantic-settings
-python-multipart==0.0.31
+python-multipart==0.0.32
     # via mcp
 pyyaml==6.0.3
     # via
