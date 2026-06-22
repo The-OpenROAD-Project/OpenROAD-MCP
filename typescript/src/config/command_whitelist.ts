@@ -22,19 +22,10 @@
  * binary/args. This module guards the Tcl statements sent to the REPL.
  */
 
-import { minimatch } from "minimatch";
+import { Minimatch } from "minimatch";
 import { getLogger } from "../utils/logging.js";
 
 const logger = getLogger("command_whitelist");
-
-// Python uses fnmatch.fnmatch, which (unlike default glob) does not special-case
-// a leading dot. `dot: true` makes minimatch's `*` match leading dots too, so
-// single-token verb matching stays faithful to the Python implementation.
-const MINIMATCH_OPTS = { dot: true } as const;
-
-function matchVerb(verb: string, pattern: string): boolean {
-  return minimatch(verb, pattern, MINIMATCH_OPTS);
-}
 
 // Blocked commands - denied in both query and exec tools.
 export const BLOCKED_COMMANDS: ReadonlySet<string> = new Set([
@@ -146,6 +137,20 @@ export const READONLY_PATTERNS: readonly string[] = [
   ..._TCL_BUILTINS,
 ];
 
+// Python uses fnmatch.fnmatch, which (unlike default glob) does not special-case
+// a leading dot. `dot: true` makes minimatch's `*` match leading dots too, so
+// single-token verb matching stays faithful to the Python implementation.
+const MINIMATCH_OPTS = { dot: true } as const;
+
+// Pre-compile all glob patterns once at module load (~30x faster than calling
+// minimatch() on every check, which recompiles the regex on each invocation).
+const EXEC_ONLY_MATCHERS = EXEC_ONLY_PATTERNS.map((p) => new Minimatch(p, MINIMATCH_OPTS));
+const READONLY_MATCHERS = READONLY_PATTERNS.map((p) => new Minimatch(p, MINIMATCH_OPTS));
+
+function matchesAny(verb: string, matchers: readonly Minimatch[]): boolean {
+  return matchers.some((m) => m.match(verb));
+}
+
 /**
  * Return the command verb (first token) of a single Tcl statement.
  *
@@ -192,8 +197,8 @@ export function isQueryCommand(command: string): [boolean, string | null] {
       return [false, verb];
     }
 
-    if (!READONLY_PATTERNS.some((pattern) => matchVerb(verb, pattern))) {
-      if (EXEC_ONLY_PATTERNS.some((pattern) => matchVerb(verb, pattern))) {
+    if (!matchesAny(verb, READONLY_MATCHERS)) {
+      if (matchesAny(verb, EXEC_ONLY_MATCHERS)) {
         logger.warn(`Blocked command '${verb}' (exec-only, use the exec tool)`);
       } else {
         logger.warn(`Blocked command '${verb}' (unknown, treated as exec-only)`);
