@@ -102,18 +102,12 @@ export interface ManagerMetrics {
 }
 
 // Zod result schemas
-// BaseResult pattern: every result carries `error: string | null`, defaulting to
-// null. Python Pydantic always emits the `error` key (`= None` -> `null`), so we
-// use `.nullable().default(null)`, never `.optional()`, to preserve key presence.
+// Mirrors Python's Pydantic models in core/models.py. Every result carries
+// `error: string | null` (defaulting to null) matching Pydantic's `= None`
+// serialization. These are wired up at the tool serialization boundary
+// (BaseTool.formatResult, Part 2).
 
 const errorField = z.string().nullable().default(null);
-
-export const CommandRecord = z.object({
-  command: z.string(),
-  timestamp: z.string(),
-  id: z.number(),
-});
-export type CommandRecord = z.infer<typeof CommandRecord>;
 
 export const InteractiveSessionListResult = z.object({
   sessions: z.array(z.custom<InteractiveSessionInfo>()).default([]),
@@ -199,3 +193,4 @@ export const ReadImageResult = z.object({
   error: errorField,
 });
 export type ReadImageResult = z.infer<typeof ReadImageResult>;
+
