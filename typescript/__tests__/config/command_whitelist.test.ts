@@ -282,6 +282,45 @@ describe("isCommandAllowed", () => {
   });
 });
 
+// splitlines() parity — bypass regression tests
+
+describe("line-boundary splitting (Python splitlines parity)", () => {
+  // Each of these separators must be treated as a statement boundary so that
+  // a blocked verb after the separator is not silently skipped.
+
+  it("blocks quit hidden after \\r (CR alone)", () => {
+    expect(isExecCommand("report_checks\rquit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks quit hidden after \\r\\n (CRLF)", () => {
+    expect(isExecCommand("report_checks\r\nquit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks quit hidden after \\v (vertical tab)", () => {
+    expect(isExecCommand("report_checks\vquit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks quit hidden after \\f (form feed)", () => {
+    expect(isExecCommand("report_checks\fquit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks quit hidden after \\x85 (NEL)", () => {
+    expect(isExecCommand("report_checks\x85quit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks quit hidden after \\u2028 (line separator)", () => {
+    expect(isExecCommand("report_checks quit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks quit hidden after \\u2029 (paragraph separator)", () => {
+    expect(isExecCommand("report_checks quit")).toEqual([false, "quit"]);
+  });
+
+  it("query tool also blocks exec-only verb hidden after \\r", () => {
+    expect(isQueryCommand("report_checks\rglobal_placement")).toEqual([false, "global_placement"]);
+  });
+});
+
 // minimatch vs fnmatch parity
 
 describe("glob parity (minimatch vs fnmatch)", () => {

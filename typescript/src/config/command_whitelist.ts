@@ -164,10 +164,13 @@ export function extractVerb(statement: string): string | null {
 
 /** Iterate the verbs of a command, mirroring Python's naive `;`->newline split. */
 function* iterVerbs(command: string): Generator<string> {
-  // Preserve the naive splitting behavior exactly: replace ';' with newline,
-  // then split into lines. Semicolons inside Tcl braces or quoted strings are
-  // not handled - this matches the Python implementation's known limitation.
-  for (const rawLine of command.replace(/;/g, "\n").split("\n")) {
+  // Replace ';' with newline, then split on all Unicode line boundaries that
+  // Python's str.splitlines() recognises. \r\n must precede \r so the pair is
+  // consumed as one separator. Semicolons inside Tcl braces or quoted strings
+  // are not handled - this matches the Python implementation's known limitation.
+  for (const rawLine of command
+    .replace(/;/g, "\n")
+    .split(/\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]/)) {
     const verb = extractVerb(rawLine);
     if (verb !== null) {
       yield verb;
