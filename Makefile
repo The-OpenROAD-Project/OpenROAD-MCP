@@ -9,14 +9,6 @@ IMAGE_NAME:= ghcr.io/the-openroad-project/openroad-mcp
 sync:
 	@uv sync --all-extras --inexact
 
-.PHONY: reqs
-reqs:
-	@rm -f requirements.txt
-	@rm -f requirements-test.txt
-	@uv sync --all-extras --inexact  --upgrade
-	@uv pip compile --output-file=requirements.txt pyproject.toml --upgrade
-	@uv pip compile --output-file=requirements-test.txt pyproject.toml --extra dev  --upgrade
-
 .PHONY: format
 format:
 	@uv run ruff format .
