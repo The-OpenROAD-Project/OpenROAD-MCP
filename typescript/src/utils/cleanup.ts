@@ -23,12 +23,10 @@ export class CleanupManager {
     this.resolveShutdown = resolve;
   });
 
-  /** Register a handler to run during graceful shutdown (sync or async). */
   registerAsyncCleanupHandler(handler: CleanupHandler): void {
     this.handlers.push(handler);
   }
 
-  /** Install SIGTERM/SIGINT handlers that trigger shutdown and arm a force-exit. */
   setupSignalHandlers(): void {
     const onSignal = (signal: NodeJS.Signals): void => {
       if (this.shutdownInitiated) return;
@@ -56,12 +54,10 @@ export class CleanupManager {
     this.resolveShutdown?.();
   }
 
-  /** Resolves once shutdown is triggered. */
   async waitForShutdown(): Promise<void> {
     await this.shutdownPromise;
   }
 
-  /** Run every registered cleanup handler, isolating failures. */
   async runHandlers(): Promise<void> {
     for (const handler of this.handlers) {
       try {

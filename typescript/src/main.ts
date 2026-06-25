@@ -16,7 +16,6 @@ import { ValidationError } from "./exceptions.js";
  * log level is applied. Only pure modules are imported statically here.
  */
 async function main(): Promise<void> {
-  // Fail fast on a misconfigured env var; surface it as a configuration error.
   try {
     initSettings();
   } catch (e) {
