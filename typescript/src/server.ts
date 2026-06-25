@@ -1,7 +1,14 @@
+import { createServer } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
+import type { CLIConfig } from "./config/cli.js";
 import { manager as defaultManager } from "./core/manager.js";
 import type { OpenROADManager } from "./core/manager.js";
+import { cleanupManager } from "./utils/cleanup.js";
+import { getLogger } from "./utils/logging.js";
 import {
   CreateSessionTool,
   ExecShellTool,
@@ -13,6 +20,8 @@ import {
   TerminateSessionTool,
 } from "./tools/interactive.js";
 import { ListReportImagesTool, ReadReportImageTool } from "./tools/report_images.js";
+
+const logger = getLogger("server");
 
 const VERSION = "0.5.0";
 
@@ -238,4 +247,89 @@ export function createMcpServer(manager: OpenROADManager = defaultManager): McpS
   );
 
   return mcp;
+}
+
+// Module-level server instance for the production entrypoint. Tests build their
+// own isolated server via createMcpServer().
+export const mcp = createMcpServer();
+
+/** Terminate every live session so shutdown does not leak OpenROAD processes. */
+export async function shutdownOpenroad(): Promise<void> {
+  logger.info("Initiating graceful shutdown...");
+  try {
+    await defaultManager.cleanupAll();
+    logger.info("Graceful shutdown complete");
+  } catch (e) {
+    logger.error(`Error during shutdown: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** Collect a request body and JSON-parse it, rejecting malformed payloads. */
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk as Buffer);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (raw.length === 0) return undefined;
+  return JSON.parse(raw);
+}
+
+/**
+ * Boot the MCP server for the configured transport and block until shutdown.
+ *
+ * stdio is the primary npx path. http uses a stateless streamable-HTTP
+ * transport — session continuity is provided by OpenROADManager keying on its
+ * own session_id, so no MCP-level session state is needed. Either way the
+ * lifecycle ends on a signal (SIGTERM/SIGINT) or transport close, after which
+ * every session is cleaned up.
+ */
+export async function runServer(config: CLIConfig): Promise<void> {
+  cleanupManager.registerAsyncCleanupHandler(shutdownOpenroad);
+  cleanupManager.setupSignalHandlers();
+
+  try {
+    if (config.transport.mode === "stdio") {
+      // A client disconnect / stdin EOF closes the transport; treat that as a
+      // shutdown so the process does not hang waiting for a signal.
+      mcp.server.onclose = (): void => cleanupManager.triggerShutdown();
+      const transport = new StdioServerTransport();
+      await mcp.connect(transport);
+      logger.info("MCP server running on stdio transport");
+      await cleanupManager.waitForShutdown();
+    } else {
+      // Omitting sessionIdGenerator selects stateless mode (no MCP session
+      // tracking); OpenROADManager owns session continuity via its session_id.
+      const transport = new StreamableHTTPServerTransport();
+      // The SDK's streamable-HTTP transport types its onclose as
+      // `(() => void) | undefined`, which trips exactOptionalPropertyTypes
+      // against the Transport interface; the runtime contract is unaffected.
+      await mcp.connect(transport as unknown as Parameters<typeof mcp.connect>[0]);
+
+      const httpServer = createServer((req: IncomingMessage, res: ServerResponse): void => {
+        void (async (): Promise<void> => {
+          try {
+            const body = req.method === "POST" ? await readJsonBody(req) : undefined;
+            await transport.handleRequest(req, res, body);
+          } catch (e) {
+            logger.error(`HTTP request error: ${e instanceof Error ? e.message : String(e)}`);
+            if (!res.headersSent) {
+              res.writeHead(400, { "Content-Type": "application/json" }).end(
+                JSON.stringify({ error: "Invalid request body" }),
+              );
+            }
+          }
+        })();
+      });
+
+      httpServer.listen(config.transport.port, config.transport.host);
+      logger.info(
+        `MCP server running on http transport at ${config.transport.host}:${config.transport.port}`,
+      );
+      await cleanupManager.waitForShutdown();
+      await new Promise<void>((resolve) => httpServer.close(() => { resolve(); }));
+    }
+  } finally {
+    await cleanupManager.runHandlers();
+  }
 }
