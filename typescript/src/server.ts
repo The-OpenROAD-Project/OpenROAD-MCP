@@ -276,6 +276,40 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /**
+ * Handle one HTTP request in stateless mode. The SDK forbids reusing a
+ * streamable-HTTP transport across requests — a shared transport keys its
+ * request→stream map by JSON-RPC id, so two clients both numbering from 1 would
+ * collide. A fresh server + transport per request keeps clients isolated; both
+ * are torn down when the response closes. Session continuity is unaffected
+ * because OpenROADManager owns it via its own session_id, independent of MCP.
+ */
+async function handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const requestServer = createMcpServer();
+  const transport = new StreamableHTTPServerTransport();
+  res.on("close", () => {
+    void transport.close();
+    void requestServer.close();
+  });
+  try {
+    // The SDK's streamable-HTTP transport types its onclose as
+    // `(() => void) | undefined`, which trips exactOptionalPropertyTypes against
+    // the Transport interface; the runtime contract is unaffected.
+    await requestServer.connect(
+      transport as unknown as Parameters<typeof requestServer.connect>[0],
+    );
+    const body = req.method === "POST" ? await readJsonBody(req) : undefined;
+    await transport.handleRequest(req, res, body);
+  } catch (e) {
+    logger.error(`HTTP request error: ${e instanceof Error ? e.message : String(e)}`);
+    if (!res.headersSent) {
+      res.writeHead(400, { "Content-Type": "application/json" }).end(
+        JSON.stringify({ error: "Invalid request body" }),
+      );
+    }
+  }
+}
+
+/**
  * Boot the MCP server for the configured transport and block until shutdown.
  *
  * stdio is the primary npx path. http uses a stateless streamable-HTTP
@@ -298,28 +332,8 @@ export async function runServer(config: CLIConfig): Promise<void> {
       logger.info("MCP server running on stdio transport");
       await cleanupManager.waitForShutdown();
     } else {
-      // Omitting sessionIdGenerator selects stateless mode (no MCP session
-      // tracking); OpenROADManager owns session continuity via its session_id.
-      const transport = new StreamableHTTPServerTransport();
-      // The SDK's streamable-HTTP transport types its onclose as
-      // `(() => void) | undefined`, which trips exactOptionalPropertyTypes
-      // against the Transport interface; the runtime contract is unaffected.
-      await mcp.connect(transport as unknown as Parameters<typeof mcp.connect>[0]);
-
       const httpServer = createServer((req: IncomingMessage, res: ServerResponse): void => {
-        void (async (): Promise<void> => {
-          try {
-            const body = req.method === "POST" ? await readJsonBody(req) : undefined;
-            await transport.handleRequest(req, res, body);
-          } catch (e) {
-            logger.error(`HTTP request error: ${e instanceof Error ? e.message : String(e)}`);
-            if (!res.headersSent) {
-              res.writeHead(400, { "Content-Type": "application/json" }).end(
-                JSON.stringify({ error: "Invalid request body" }),
-              );
-            }
-          }
-        })();
+        void handleHttpRequest(req, res);
       });
 
       httpServer.listen(config.transport.port, config.transport.host);
