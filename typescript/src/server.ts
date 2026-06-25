@@ -25,7 +25,6 @@ const logger = getLogger("server");
 
 const VERSION = "0.5.0";
 
-/** Wrap a tool's JSON-string result in the MCP text-content envelope. */
 function text(value: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text" as const, text: value }] };
 }
@@ -253,7 +252,6 @@ export function createMcpServer(manager: OpenROADManager = defaultManager): McpS
 // own isolated server via createMcpServer().
 export const mcp = createMcpServer();
 
-/** Terminate every live session so shutdown does not leak OpenROAD processes. */
 export async function shutdownOpenroad(): Promise<void> {
   logger.info("Initiating graceful shutdown...");
   try {
@@ -264,7 +262,6 @@ export async function shutdownOpenroad(): Promise<void> {
   }
 }
 
-/** Collect a request body and JSON-parse it, rejecting malformed payloads. */
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -277,11 +274,11 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 
 /**
  * Handle one HTTP request in stateless mode. The SDK forbids reusing a
- * streamable-HTTP transport across requests — a shared transport keys its
- * request→stream map by JSON-RPC id, so two clients both numbering from 1 would
- * collide. A fresh server + transport per request keeps clients isolated; both
- * are torn down when the response closes. Session continuity is unaffected
- * because OpenROADManager owns it via its own session_id, independent of MCP.
+ * streamable-HTTP transport across requests: a shared transport keys its
+ * request-to-stream map by JSON-RPC id, so two clients both numbering from 1
+ * would collide. A fresh server + transport per request keeps clients isolated;
+ * both are torn down when the response closes. OpenROADManager owns session
+ * continuity via its own session_id, independent of MCP.
  */
 async function handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const requestServer = createMcpServer();
@@ -311,12 +308,8 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse): Pro
 
 /**
  * Boot the MCP server for the configured transport and block until shutdown.
- *
- * stdio is the primary npx path. http uses a stateless streamable-HTTP
- * transport — session continuity is provided by OpenROADManager keying on its
- * own session_id, so no MCP-level session state is needed. Either way the
- * lifecycle ends on a signal (SIGTERM/SIGINT) or transport close, after which
- * every session is cleaned up.
+ * Lifecycle ends on SIGTERM/SIGINT or transport close, then every session is
+ * cleaned up.
  */
 export async function runServer(config: CLIConfig): Promise<void> {
   cleanupManager.registerAsyncCleanupHandler(shutdownOpenroad);
