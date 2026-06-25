@@ -1,0 +1,134 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare-release:
+    name: Prepare ${{ inputs.bump_type }} release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          token: ${{ secrets.OPENROAD_CI_PAT }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+
+      - name: Install dependencies
+        run: make sync
+
+      - name: Run tests
+        run: make test
+
+      - name: Run checks
+        run: make check
+
+      - name: Compute new version
+        id: version
+        run: |
+          CURRENT=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
+          case "${{ inputs.bump_type }}" in
+            major) MAJ=$((MAJ+1)); MIN=0; PAT=0 ;;
+            minor) MIN=$((MIN+1)); PAT=0 ;;
+            patch) PAT=$((PAT+1)) ;;
+          esac
+          NEW="${MAJ}.${MIN}.${PAT}"
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "new=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
+          echo "branch=release/v${NEW}" >> "$GITHUB_OUTPUT"
+          echo "Bumping ${CURRENT} → ${NEW} (${{ inputs.bump_type }})"
+
+      - name: Generate changelog entries
+        run: python3 .github/scripts/generate_changelog_section.py
+
+      - name: Update pyproject.toml
+        run: |
+          OLD="${{ steps.version.outputs.current }}"
+          NEW="${{ steps.version.outputs.new }}"
+          sed -i "s/^version = \"${OLD}\"/version = \"${NEW}\"/" pyproject.toml
+
+      - name: Update server.json
+        run: |
+          if [ -f server.json ]; then
+            OLD="${{ steps.version.outputs.current }}"
+            NEW="${{ steps.version.outputs.new }}"
+            sed -i "s/\"version\": \"${OLD}\"/\"version\": \"${NEW}\"/g" server.json
+            sed -i "s|ghcr.io/[Tt]he-[Oo]pen[Rr][Oo][Aa][Dd]-[Pp]roject/openroad-mcp:${OLD}|ghcr.io/the-openroad-project/openroad-mcp:${NEW}|g" server.json
+          fi
+
+      - name: Update README.md URLs
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          perl -i -pe \
+            's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@'"${TAG}"'!g' \
+            README.md
+
+      - name: Update CHANGELOG.md
+        run: |
+          python3 .github/scripts/update_changelog.py \
+            "${{ steps.version.outputs.new }}" \
+            "${{ steps.version.outputs.tag }}"
+
+      - name: Regenerate uv.lock
+        run: uv lock
+
+      - name: Verify no stale version references
+        run: |
+          OLD="${{ steps.version.outputs.current }}"
+          FOUND=$(grep -r "${OLD}" --include="*.toml" --include="*.json" . 2>/dev/null || true)
+          if [ -n "$FOUND" ]; then
+            echo "WARNING: old version ${OLD} still found in:"
+            echo "$FOUND"
+          else
+            echo "All version references updated cleanly."
+          fi
+
+      - name: Create release branch and commit
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          BRANCH="${{ steps.version.outputs.branch }}"
+
+          git config user.name "openroad-ci"
+          git config user.email "54529053+openroad-ci@users.noreply.github.com"
+          git checkout -b "${BRANCH}"
+          git add pyproject.toml uv.lock README.md CHANGELOG.md
+          if [ -f server.json ]; then git add server.json; fi
+          git commit -m "chore: release ${TAG}"
+          git push -u origin "${BRANCH}"
+
+      - name: Open release PR
+        env:
+          GH_TOKEN: ${{ secrets.OPENROAD_CI_PAT }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          BRANCH="${{ steps.version.outputs.branch }}"
+          gh pr create \
+            --title "chore: release ${TAG}" \
+            --body "$(cat <<EOF
+          ## Release ${TAG}
+
+          See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+          /cc @vvbandeira — please review and merge when ready.
+          EOF
+          )" \
+            --reviewer vvbandeira \
+            --base main \
+            --head "${BRANCH}"
