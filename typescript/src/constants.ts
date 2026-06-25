@@ -1,3 +1,8 @@
+// Process exit codes for the CLI entrypoint. 130 follows the shell convention
+// for a process terminated by SIGINT (128 + 2).
+export const EXIT_CODE_ERROR = 1;
+export const EXIT_CODE_KEYBOARD_INTERRUPT = 130;
+
 export const MAX_COMMAND_COMPLETION_WINDOW = 0.1;
 
 export const PROCESS_SHUTDOWN_TIMEOUT = 2.0;
