@@ -1,9 +1,15 @@
+import pidusage from "pidusage";
 import { ANSIDecoder } from "../utils/ansi_decoder.js";
 import { getSettings } from "../config/settings.js";
 import type { Settings } from "../config/settings.js";
 import { SessionState } from "../core/models.js";
-import type { InteractiveExecResult, InteractiveSessionInfo } from "../core/models.js";
-import { MAX_COMMAND_COMPLETION_WINDOW } from "../constants.js";
+import type {
+  CommandHistoryEntry,
+  InteractiveExecResult,
+  InteractiveSessionInfo,
+  SessionDetailedMetrics,
+} from "../core/models.js";
+import { BYTES_TO_MB, MAX_COMMAND_COMPLETION_WINDOW, UTILIZATION_PERCENTAGE_BASE } from "../constants.js";
 import { CircularBuffer } from "./buffer.js";
 import { SessionError, SessionTerminatedError } from "./models.js";
 import { PtyHandler } from "./pty_handler.js";
@@ -32,6 +38,14 @@ export class InteractiveSession {
   readonly sessionId: string;
   readonly createdAt: Date;
   commandCount = 0;
+
+  // Activity / history / performance tracking (consumed by the manager).
+  lastActivity: Date = new Date();
+  readonly commandHistory: CommandHistoryEntry[] = [];
+  totalCpuTime = 0;
+  peakMemoryMb = 0;
+  totalCommandsExecuted = 0;
+  sessionTimeoutSeconds: number | null = null;
 
   private _state: SessionState;
   pty: PtyHandler;
@@ -141,9 +155,20 @@ export class InteractiveSession {
       );
     }
 
+    // Record the command in history before bumping the counters so the entry's
+    // command_number matches Python (command_count + 1).
+    this.commandHistory.push({
+      command: command.trim(),
+      timestamp: new Date().toISOString(),
+      command_number: this.commandCount + 1,
+      execution_start: Date.now() / 1000,
+    });
+
     const data = command.endsWith("\n") ? command : command + "\n";
     this._inputQueue.push(data);
     this.commandCount++;
+    this.totalCommandsExecuted++;
+    this.lastActivity = new Date();
 
     const waiters = this._inputWaiters.splice(0);
     for (const w of waiters) w();
@@ -168,11 +193,13 @@ export class InteractiveSession {
       }
       const rawOutput = chunks.join("");
       const output = ANSIDecoder.cleanOpenroadOutput(rawOutput);
+      const executionTime = (Date.now() - startTime) / 1000;
+      this._recordReadResult(output.length, executionTime);
       return {
         output,
         sessionId: this.sessionId,
         timestamp: new Date().toISOString(),
-        executionTime: (Date.now() - startTime) / 1000,
+        executionTime,
         commandCount: this.commandCount,
         bufferSize: this.outputBuffer.size,
         error: this._detectErrors(output) ?? null,
@@ -205,6 +232,9 @@ export class InteractiveSession {
     const rawOutput = collected.join("");
     const executionTime = (Date.now() - startTime) / 1000;
     const output = ANSIDecoder.cleanOpenroadOutput(rawOutput);
+
+    await this._updatePerformanceMetrics();
+    this._recordReadResult(output.length, executionTime);
 
     return {
       output,
@@ -323,5 +353,136 @@ export class InteractiveSession {
     }
 
     return undefined;
+  }
+
+  /** Update lastActivity and backfill the last history entry after a read. */
+  private _recordReadResult(outputLength: number, executionTime: number): void {
+    const last = this.commandHistory[this.commandHistory.length - 1];
+    if (last && last.execution_time === undefined) {
+      last.execution_time = executionTime;
+      last.output_length = outputLength;
+    }
+    this.lastActivity = new Date();
+  }
+
+  /** Sample CPU/memory from the live process. Best-effort; silently ignores a
+   * dead or inaccessible PID. CPU time is cumulative (assigned, not summed).
+   * Returns current memory MB so callers can avoid a second pidusage() call. */
+  private async _updatePerformanceMetrics(): Promise<number> {
+    const pid = this.pty.pid;
+    if (pid == null) return 0;
+    try {
+      const usage = await pidusage(pid);
+      this.totalCpuTime = usage.ctime / 1000;
+      const currentMemoryMb = Math.max(0, usage.memory) / BYTES_TO_MB;
+      this.peakMemoryMb = Math.max(this.peakMemoryMb, currentMemoryMb);
+      return currentMemoryMb;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** True when a configured per-session timeout has been exceeded by uptime.
+   * Distinct from idle timeout - this is wall-clock lifetime, not inactivity. */
+  private _checkSessionTimeout(): boolean {
+    if (this.sessionTimeoutSeconds === null) return false;
+    const uptime = (Date.now() - this.createdAt.getTime()) / 1000;
+    return uptime > this.sessionTimeoutSeconds;
+  }
+
+  async getDetailedMetrics(): Promise<SessionDetailedMetrics> {
+    const currentMemoryMb = await this._updatePerformanceMetrics();
+    const now = Date.now();
+    const uptimeSeconds = (now - this.createdAt.getTime()) / 1000;
+    const idleSeconds = (now - this.lastActivity.getTime()) / 1000;
+    const bufferSize = this.outputBuffer.size;
+    const maxSize = this.outputBuffer.maxSize;
+
+    return {
+      session_id: this.sessionId,
+      state: this._state,
+      is_alive: this.isAlive(),
+      created_at: this.createdAt.toISOString(),
+      last_activity: this.lastActivity.toISOString(),
+      uptime_seconds: uptimeSeconds,
+      idle_seconds: idleSeconds,
+      commands: {
+        total_executed: this.totalCommandsExecuted,
+        current_count: this.commandCount,
+        history_length: this.commandHistory.length,
+      },
+      performance: {
+        total_cpu_time: this.totalCpuTime,
+        peak_memory_mb: this.peakMemoryMb,
+        current_memory_mb: currentMemoryMb,
+      },
+      buffer: {
+        current_size: bufferSize,
+        max_size: maxSize,
+        utilization_percent: maxSize > 0 ? (bufferSize / maxSize) * UTILIZATION_PERCENTAGE_BASE : 0,
+      },
+      timeout: {
+        configured_seconds: this.sessionTimeoutSeconds,
+        is_timed_out: this._checkSessionTimeout(),
+      },
+    };
+  }
+
+  getCommandHistory(limit?: number, search?: string): CommandHistoryEntry[] {
+    let history = [...this.commandHistory];
+
+    if (search) {
+      const needle = search.toLowerCase();
+      history = history.filter((cmd) => cmd.command.toLowerCase().includes(needle));
+    }
+
+    // Sort by timestamp, most recent first.
+    history.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0));
+
+    // Match Python's truthy check: limit === 0 leaves the list unsliced.
+    if (limit) {
+      history = history.slice(0, limit);
+    }
+
+    return history;
+  }
+
+  async replayCommand(commandNumber: number): Promise<string> {
+    for (const cmd of this.commandHistory) {
+      if (cmd.command_number === commandNumber) {
+        await this.sendCommand(cmd.command);
+        return cmd.command;
+      }
+    }
+    throw new SessionError(`Command ${commandNumber} not found in history`, this.sessionId);
+  }
+
+  setSessionTimeout(timeoutSeconds: number): void {
+    this.sessionTimeoutSeconds = timeoutSeconds;
+  }
+
+  isIdleTimeout(idleThresholdSeconds: number = this._settings.SESSION_IDLE_TIMEOUT): boolean {
+    const idleTime = (Date.now() - this.lastActivity.getTime()) / 1000;
+    return idleTime > idleThresholdSeconds;
+  }
+
+  async filterOutput(pattern: string, maxLines = 1000): Promise<string[]> {
+    const chunks = await this.outputBuffer.peekAll();
+    if (chunks.length === 0) return [];
+
+    const text = this.outputBuffer.toText(chunks);
+    const lines = text.split("\n");
+
+    let matching: string[];
+    try {
+      const regex = new RegExp(pattern, "i");
+      matching = lines.filter((line) => regex.test(line));
+    } catch {
+      // Fallback to a case-insensitive substring search on invalid regex.
+      const needle = pattern.toLowerCase();
+      matching = lines.filter((line) => line.toLowerCase().includes(needle));
+    }
+
+    return matching.length > 0 ? matching.slice(-maxLines) : [];
   }
 }
