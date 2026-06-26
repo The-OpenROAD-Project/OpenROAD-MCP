@@ -143,9 +143,9 @@ describe("CircularBuffer", () => {
       // Start waitForData (fast-path sees _dataAvailable = false and enters the Promise)
       const waiter = buf.waitForData(5000);
 
-      // append() fires here — before runExclusive's callback has a chance to push
-      // wakeUp into _resolvers. Without the re-check inside runExclusive, wakeUp
-      // would be pushed after append() already drained an empty _resolvers, and
+      // append() fires before runExclusive's callback can push wakeUp into
+      // _resolvers. Without the re-check inside runExclusive, wakeUp would
+      // land in _resolvers after append() already drained an empty list, and
       // the caller would wait the full 5-second timeout.
       await buf.append("raced data");
 
@@ -168,7 +168,7 @@ describe("CircularBuffer", () => {
     it("wakes pending waitForData() immediately with false so callers do not hang", async () => {
       const buf = new CircularBuffer(100);
 
-      // waitForData with a large timeout — clear() must unblock it before the timeout fires
+      // Large timeout: clear() must unblock waitForData before it fires.
       const waiter = buf.waitForData(5000);
       await buf.clear();
 

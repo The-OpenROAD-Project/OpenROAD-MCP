@@ -16,7 +16,7 @@ vi.mock("../../src/interactive/session.js", () => {
 interface MockSession {
   sessionId: string;
   lastActivity: Date;
-  isAlive: Mock;
+  checkAlive: Mock;
   start: Mock;
   sendCommand: Mock;
   readOutput: Mock;
@@ -47,7 +47,7 @@ function makeMockSession(sessionId: string, alive = true): MockSession {
   return {
     sessionId,
     lastActivity: new Date(),
-    isAlive: vi.fn().mockReturnValue(alive),
+    checkAlive: vi.fn().mockReturnValue(alive),
     start: vi.fn().mockResolvedValue(undefined),
     sendCommand: vi.fn().mockResolvedValue(undefined),
     readOutput: vi.fn().mockResolvedValue({
@@ -187,7 +187,9 @@ describe("OpenROADManager", () => {
       await manager.createSession({ sessionId: "s1" });
       await manager.terminateSession("s1", true);
       expect(created[0]!.terminate).toHaveBeenCalledWith(true);
-      expect(created[0]!.cleanup).toHaveBeenCalledOnce();
+      // terminate() handles teardown; cleanup() must not be called again here
+      // (it would clear the buffer and double-tear-down the PTY).
+      expect(created[0]!.cleanup).not.toHaveBeenCalled();
       expect(manager.getSessionCount()).toBe(0);
     });
   });
@@ -199,6 +201,21 @@ describe("OpenROADManager", () => {
       const count = await manager.terminateAllSessions();
       expect(count).toBe(2);
       expect(manager.getSessionCount()).toBe(0);
+    });
+
+    it("skips in-progress placeholders instead of throwing", async () => {
+      // A session whose start() never resolves leaves a null placeholder in the
+      // map (createSession holds the lock). terminateAllSessions must not try to
+      // terminate it (which would throw "still being created").
+      MockedSession.mockImplementationOnce(function (this: unknown, sessionId: string) {
+        const mock = makeMockSession(sessionId);
+        mock.start.mockReturnValue(new Promise<void>(() => {})); // never resolves
+        created.push(mock);
+        return mock as unknown as InteractiveSession;
+      } as unknown as (sessionId: string) => InteractiveSession);
+      void manager.createSession({ sessionId: "pending" });
+
+      await expect(manager.terminateAllSessions()).resolves.toBe(0);
     });
   });
 

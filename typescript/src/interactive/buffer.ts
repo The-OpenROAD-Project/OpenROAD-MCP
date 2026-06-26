@@ -37,8 +37,8 @@ export class CircularBuffer {
         this._totalSize -= old.length;
       }
 
-      // A single chunk that still exceeds maxSize is truncated to the last
-      // maxSize bytes so the buffer never permanently exceeds its capacity.
+      // A single chunk larger than maxSize is truncated to its last maxSize
+      // bytes so capacity is never permanently exceeded.
       if (this._totalSize > this.maxSize) {
         const chunk = this._chunks[0]!;
         this._chunks[0] = chunk.slice(chunk.length - this.maxSize);
@@ -96,9 +96,9 @@ export class CircularBuffer {
       };
 
       // Re-check _dataAvailable under the mutex: runExclusive is async, so
-      // append() can fire between the fast-path check above and the push below,
-      // set _dataAvailable = true, drain an empty _resolvers, and release —
-      // leaving wakeUp unnoticed and the caller waiting the full timeout.
+      // append() can fire between the fast-path check above and the push
+      // below, drain an empty _resolvers, and release, leaving wakeUp
+      // unnoticed and the caller waiting the full timeout.
       this._mutex.runExclusive(() => {
         if (this._dataAvailable) {
           wakeUp(true);

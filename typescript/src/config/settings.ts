@@ -18,14 +18,18 @@ function parseBool(envKey: string, val: string): boolean {
 function parseFloat_(envKey: string, val: string): number {
   if (val.trim() === "") throw new Error(`Invalid value for ${envKey}: (empty string). Expected float.`);
   const n = Number(val);
-  if (isNaN(n)) throw new Error(`Invalid value for ${envKey}: ${val}. Expected float.`);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`Invalid value for ${envKey}: ${val}. Expected a non-negative finite float.`);
+  }
   return n;
 }
 
 function parseInt_(envKey: string, val: string): number {
   if (val.trim() === "") throw new Error(`Invalid value for ${envKey}: (empty string). Expected int.`);
   if (!/^-?\d+$/.test(val.trim())) throw new Error(`Invalid value for ${envKey}: ${val}. Expected int.`);
-  return Number(val);
+  const n = Number(val);
+  if (n < 0) throw new Error(`Invalid value for ${envKey}: ${val}. Expected a non-negative integer.`);
+  return n;
 }
 
 export class Settings {
@@ -86,7 +90,6 @@ export class Settings {
   }
 
   static fromEnv(): Settings {
-    // Mutable partial — strips readonly so we can build the object incrementally.
     const overrides: { -readonly [K in keyof Settings]?: Settings[K] } = {};
 
     const floatFields: Array<[keyof Settings, string]> = [
@@ -141,11 +144,6 @@ export class Settings {
 
 let _cachedSettings: Settings | null = null;
 
-/**
- * Build and cache settings from the environment. Wraps any parsing error with
- * context so a misconfigured env var produces an actionable startup message
- * instead of a raw error thrown from module initialisation.
- */
 export function initSettings(): Settings {
   try {
     _cachedSettings = Settings.fromEnv();
@@ -156,7 +154,6 @@ export function initSettings(): Settings {
   return _cachedSettings;
 }
 
-/** Return the cached settings, initialising them lazily on first access. */
 export function getSettings(): Settings {
   return _cachedSettings ?? initSettings();
 }
