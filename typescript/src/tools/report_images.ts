@@ -97,17 +97,18 @@ function availableRuns(reportsBase: string): string[] {
   }
 }
 
-/** Requires Node.js 20+ for the `recursive` option on readdirSync. */
 function findWebpFiles(dir: string): string[] {
-  const entries = fs.readdirSync(dir, { recursive: true, withFileTypes: true });
-  return entries
-    .filter((e) => e.isFile() && e.name.endsWith(".webp"))
-    .map((e) => {
-      // `parentPath` is Node 20.12+; `path` is the older alias.
-      const parent = (e as unknown as { parentPath?: string; path?: string })
-        .parentPath ?? (e as unknown as { path: string }).path;
-      return path.join(parent, e.name);
-    });
+  const results: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...findWebpFiles(full));
+    } else if (entry.isFile() && entry.name.endsWith(".webp")) {
+      results.push(full);
+    }
+  }
+  return results;
 }
 
 interface CompressResult {

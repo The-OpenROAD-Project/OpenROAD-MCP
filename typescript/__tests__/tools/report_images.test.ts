@@ -180,6 +180,34 @@ describe("ListReportImagesTool", () => {
     expect(result.images_by_stage).toHaveProperty("final");
   });
 
+  it("does not descend symlinked directories or list symlinked files", async () => {
+    const { flowPath, runPath } = createFixture("nangate45", "gcd", "run-123", [
+      "cts_clk.webp",
+    ]);
+    // A directory of images outside the run, reachable only via symlinks.
+    const outside = path.join(tmpDir, "outside");
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outside, "final_all.webp"), Buffer.from("RIFF\x00\x00\x00\x00WEBP"));
+    try {
+      fs.symlinkSync(outside, path.join(runPath, "linkdir"));
+      fs.symlinkSync(path.join(outside, "final_all.webp"), path.join(runPath, "linkfile.webp"));
+    } catch {
+      // symlink creation may fail in some environments; skip gracefully.
+      return;
+    }
+    (getSettings as ReturnType<typeof vi.fn>).mockReturnValue({
+      platforms: ["nangate45"],
+      designs: (p: string) => (p === "nangate45" ? ["gcd"] : []),
+      flowPath,
+      WHITELIST_ENABLED: false,
+    });
+    const result = JSON.parse(await tool.execute("nangate45", "gcd", "run-123"));
+    // Only the real cts_clk.webp is found; nothing reached through a symlink.
+    expect(result.total_images).toBe(1);
+    expect(result.images_by_stage).toHaveProperty("cts");
+    expect(result.images_by_stage).not.toHaveProperty("final");
+  });
+
   it("filters images by stage", async () => {
     const { flowPath } = createFixture("nangate45", "gcd", "run-123", [
       "cts_clk.webp",
