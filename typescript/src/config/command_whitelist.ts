@@ -190,26 +190,42 @@ function splitTclStatements(command: string): string[] {
   let depth = 0;
   let inQuote = false;
   let current = "";
+  // In Tcl a `"` only opens a quoted string at the start of a word; a quote in
+  // the middle of a word (e.g. `a"b`) is a literal. Track word boundaries so an
+  // unbalanced mid-word quote cannot flip us into quote mode and swallow the
+  // separator that follows it.
+  let atWordStart = true;
 
   for (let i = 0; i < command.length; i++) {
     const ch = command[i]!;
     if (ch === "\\" && i + 1 < command.length) {
       current += ch + command[i + 1]!;
       i++;
-    } else if (ch === '"' && depth === 0) {
+      atWordStart = false;
+    } else if (ch === '"' && depth === 0 && (inQuote || atWordStart)) {
       inQuote = !inQuote;
       current += ch;
+      atWordStart = false;
     } else if (!inQuote && ch === "{") {
       depth++;
       current += ch;
+      atWordStart = false;
     } else if (!inQuote && ch === "}") {
-      depth--;
+      // Clamp at zero: an unbalanced close brace must not drive depth negative,
+      // which would make the `depth === 0` separator test below permanently
+      // false and hide every subsequent statement from the verb check.
+      if (depth > 0) depth--;
       current += ch;
+      atWordStart = false;
     } else if (!inQuote && depth === 0 && (ch === ";" || STATEMENT_SEPARATORS.has(ch))) {
       stmts.push(current);
       current = "";
+      atWordStart = true;
     } else {
       current += ch;
+      // Whitespace and `[` (which begins a command substitution) start a new
+      // word, so a `"` immediately after them is again quote-significant.
+      atWordStart = ch === " " || ch === "\t" || ch === "[";
     }
   }
   if (current) stmts.push(current);

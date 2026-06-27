@@ -241,6 +241,14 @@ describe("isQueryCommand", () => {
   it("semicolon inside braces is not a statement separator (finding 3)", () => {
     expect(isQueryCommand("report_checks {a; b}")).toEqual([true, null]);
   });
+
+  it("unbalanced close brace cannot hide a trailing exec (depth clamp)", () => {
+    expect(isQueryCommand("report_wns }; exec ls")).toEqual([false, "exec"]);
+  });
+
+  it("mid-word quote is literal and cannot hide a trailing exec", () => {
+    expect(isQueryCommand('set x a"b ; exec ls')).toEqual([false, "exec"]);
+  });
 });
 
 // isExecCommand
@@ -303,6 +311,10 @@ describe("isExecCommand", () => {
 
   it("blocks a multiline command with one blocked verb", () => {
     expect(isExecCommand("global_placement\nsocket tcp localhost")).toEqual([false, "socket"]);
+  });
+
+  it("unbalanced close brace cannot hide a trailing quit (depth clamp)", () => {
+    expect(isExecCommand("set x } ; quit")).toEqual([false, "quit"]);
   });
 });
 
