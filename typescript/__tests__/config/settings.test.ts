@@ -135,6 +135,32 @@ describe("Settings", () => {
       expect(() => Settings.fromEnv()).toThrow("OPENROAD_MAX_SESSIONS");
     });
 
+    it("rejects zero for int fields that must be positive", () => {
+      for (const key of [
+        "OPENROAD_MAX_SESSIONS",
+        "OPENROAD_SESSION_QUEUE_SIZE",
+        "OPENROAD_DEFAULT_BUFFER_SIZE",
+        "OPENROAD_READ_CHUNK_SIZE",
+      ]) {
+        process.env[key] = "0";
+        expect(() => Settings.fromEnv()).toThrow(key);
+        delete process.env[key];
+      }
+    });
+
+    it("rejects zero for float fields that must be positive", () => {
+      for (const key of ["OPENROAD_COMMAND_TIMEOUT", "OPENROAD_SESSION_IDLE_TIMEOUT"]) {
+        process.env[key] = "0";
+        expect(() => Settings.fromEnv()).toThrow(key);
+        delete process.env[key];
+      }
+    });
+
+    it("allows zero for COMMAND_COMPLETION_DELAY (no delay)", () => {
+      process.env["OPENROAD_COMMAND_COMPLETION_DELAY"] = "0";
+      expect(Settings.fromEnv().COMMAND_COMPLETION_DELAY).toBe(0);
+    });
+
     it("rejects decimal strings for int fields", () => {
       process.env["OPENROAD_MAX_SESSIONS"] = "50.0";
       expect(() => Settings.fromEnv()).toThrow("OPENROAD_MAX_SESSIONS");

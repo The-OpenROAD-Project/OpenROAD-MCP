@@ -15,20 +15,24 @@ function parseBool(envKey: string, val: string): boolean {
   );
 }
 
-function parseFloat_(envKey: string, val: string): number {
+function parseFloat_(envKey: string, val: string, allowZero: boolean): number {
   if (val.trim() === "") throw new Error(`Invalid value for ${envKey}: (empty string). Expected float.`);
   const n = Number(val);
-  if (!Number.isFinite(n) || n < 0) {
-    throw new Error(`Invalid value for ${envKey}: ${val}. Expected a non-negative finite float.`);
+  const bound = allowZero ? "non-negative" : "positive";
+  if (!Number.isFinite(n) || n < 0 || (!allowZero && n === 0)) {
+    throw new Error(`Invalid value for ${envKey}: ${val}. Expected a ${bound} finite float.`);
   }
   return n;
 }
 
-function parseInt_(envKey: string, val: string): number {
+function parseInt_(envKey: string, val: string, allowZero: boolean): number {
   if (val.trim() === "") throw new Error(`Invalid value for ${envKey}: (empty string). Expected int.`);
   if (!/^-?\d+$/.test(val.trim())) throw new Error(`Invalid value for ${envKey}: ${val}. Expected int.`);
   const n = Number(val);
-  if (n < 0) throw new Error(`Invalid value for ${envKey}: ${val}. Expected a non-negative integer.`);
+  const bound = allowZero ? "non-negative" : "positive";
+  if (n < 0 || (!allowZero && n === 0)) {
+    throw new Error(`Invalid value for ${envKey}: ${val}. Expected a ${bound} integer.`);
+  }
   return n;
 }
 
@@ -92,16 +96,17 @@ export class Settings {
   static fromEnv(): Settings {
     const overrides: { -readonly [K in keyof Settings]?: Settings[K] } = {};
 
-    const floatFields: Array<[keyof Settings, string]> = [
-      ["COMMAND_TIMEOUT", "OPENROAD_COMMAND_TIMEOUT"],
-      ["COMMAND_COMPLETION_DELAY", "OPENROAD_COMMAND_COMPLETION_DELAY"],
-      ["SESSION_IDLE_TIMEOUT", "OPENROAD_SESSION_IDLE_TIMEOUT"],
+    // [field, envKey, allowZero]
+    const floatFields: Array<[keyof Settings, string, boolean]> = [
+      ["COMMAND_TIMEOUT", "OPENROAD_COMMAND_TIMEOUT", false],
+      ["COMMAND_COMPLETION_DELAY", "OPENROAD_COMMAND_COMPLETION_DELAY", true],
+      ["SESSION_IDLE_TIMEOUT", "OPENROAD_SESSION_IDLE_TIMEOUT", false],
     ];
-    const intFields: Array<[keyof Settings, string]> = [
-      ["DEFAULT_BUFFER_SIZE", "OPENROAD_DEFAULT_BUFFER_SIZE"],
-      ["MAX_SESSIONS", "OPENROAD_MAX_SESSIONS"],
-      ["SESSION_QUEUE_SIZE", "OPENROAD_SESSION_QUEUE_SIZE"],
-      ["READ_CHUNK_SIZE", "OPENROAD_READ_CHUNK_SIZE"],
+    const intFields: Array<[keyof Settings, string, boolean]> = [
+      ["DEFAULT_BUFFER_SIZE", "OPENROAD_DEFAULT_BUFFER_SIZE", false],
+      ["MAX_SESSIONS", "OPENROAD_MAX_SESSIONS", false],
+      ["SESSION_QUEUE_SIZE", "OPENROAD_SESSION_QUEUE_SIZE", false],
+      ["READ_CHUNK_SIZE", "OPENROAD_READ_CHUNK_SIZE", false],
     ];
     const strFields: Array<[keyof Settings, string]> = [
       ["LOG_LEVEL", "LOG_LEVEL"],
@@ -109,13 +114,13 @@ export class Settings {
       ["ORFS_FLOW_PATH", "ORFS_FLOW_PATH"],
     ];
 
-    for (const [field, envKey] of floatFields) {
+    for (const [field, envKey, allowZero] of floatFields) {
       const val = process.env[envKey];
-      if (val !== undefined) (overrides as Record<string, unknown>)[field] = parseFloat_(envKey, val);
+      if (val !== undefined) (overrides as Record<string, unknown>)[field] = parseFloat_(envKey, val, allowZero);
     }
-    for (const [field, envKey] of intFields) {
+    for (const [field, envKey, allowZero] of intFields) {
       const val = process.env[envKey];
-      if (val !== undefined) (overrides as Record<string, unknown>)[field] = parseInt_(envKey, val);
+      if (val !== undefined) (overrides as Record<string, unknown>)[field] = parseInt_(envKey, val, allowZero);
     }
     for (const [field, envKey] of strFields) {
       const val = process.env[envKey];
