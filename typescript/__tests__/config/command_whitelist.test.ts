@@ -242,6 +242,18 @@ describe("isQueryCommand", () => {
     expect(isQueryCommand("report_checks {a; b}")).toEqual([true, null]);
   });
 
+  it("allows a bracket inside a comment line (never executed)", () => {
+    expect(isQueryCommand("# harmless [exec ls]")).toEqual([true, null]);
+  });
+
+  it("allows a comment with a bracket after a readonly statement", () => {
+    expect(isQueryCommand("report_wns\n# harmless [exec ls]")).toEqual([true, null]);
+  });
+
+  it("still blocks a bracket when # is a mid-statement arg, not a comment", () => {
+    expect(isQueryCommand("report_checks # [exec ls]")).toEqual([false, "exec"]);
+  });
+
   it("unbalanced close brace cannot hide a trailing exec (depth clamp)", () => {
     expect(isQueryCommand("report_wns }; exec ls")).toEqual([false, "exec"]);
   });

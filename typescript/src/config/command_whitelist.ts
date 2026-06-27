@@ -235,23 +235,28 @@ function splitTclStatements(command: string): string[] {
 /**
  * Iterate the verbs of a Tcl command string.
  *
- * Two passes:
- * 1. Statement verbs — the leading token of each statement. The split is
- *    Tcl-aware (skips separators inside quotes/braces) and treats `;` plus all
- *    Unicode line boundaries as separators so a \r cannot hide a command.
- * 2. Bracket verbs — the word immediately following each `[` (bracket
- *    substitution). This catches `set x [exec ls]` where the outer verb `set`
- *    is safe but the substituted command `exec` is not.
+ * Per statement, in a Tcl-aware split (separators inside quotes/braces are
+ * ignored; `;` plus all Unicode line boundaries are separators so a \r cannot
+ * hide a command), two kinds of verb are yielded:
+ * 1. The statement verb — its leading token.
+ * 2. Bracket verbs — the word following each `[` (bracket substitution). This
+ *    catches `set x [exec ls]` where the outer verb `set` is safe but the
+ *    substituted command `exec` is not.
+ *
+ * Comment and blank statements (extractVerb returns null) are skipped entirely,
+ * including their brackets: a `#` comment is discarded at Tcl parse time and is
+ * never executed, so `# harmless [exec ls]` must not be rejected on the `exec`.
+ * Brackets inside brace-quoted arguments are still scanned, because commands
+ * like `expr`/`eval` re-evaluate brace contents, so they cannot be assumed inert.
  */
 function* iterVerbs(command: string): Generator<string> {
   for (const stmt of splitTclStatements(command)) {
     const verb = extractVerb(stmt);
-    if (verb !== null) {
-      yield verb;
+    if (verb === null) continue;
+    yield verb;
+    for (const match of stmt.matchAll(/\[\s*(?::+)?(\w+)/g)) {
+      yield match[1]!;
     }
-  }
-  for (const match of command.matchAll(/\[\s*(?::+)?(\w+)/g)) {
-    yield match[1]!;
   }
 }
 
