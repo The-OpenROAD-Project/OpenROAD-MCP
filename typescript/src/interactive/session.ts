@@ -1,5 +1,7 @@
 import pidusage from "pidusage";
+import { Mutex } from "async-mutex";
 import { ANSIDecoder } from "../utils/ansi_decoder.js";
+import { getLogger } from "../utils/logging.js";
 import { getSettings } from "../config/settings.js";
 import type { Settings } from "../config/settings.js";
 import { SessionState } from "../core/models.js";
@@ -9,7 +11,12 @@ import type {
   InteractiveSessionInfo,
   SessionDetailedMetrics,
 } from "../core/models.js";
-import { BYTES_TO_MB, MAX_COMMAND_COMPLETION_WINDOW, UTILIZATION_PERCENTAGE_BASE } from "../constants.js";
+import {
+  BYTES_TO_MB,
+  MAX_COMMAND_COMPLETION_WINDOW,
+  MAX_COMMAND_HISTORY,
+  UTILIZATION_PERCENTAGE_BASE,
+} from "../constants.js";
 import { CircularBuffer } from "./buffer.js";
 import { SessionError, SessionTerminatedError } from "./models.js";
 import { PtyHandler } from "./pty_handler.js";
@@ -48,6 +55,10 @@ export class InteractiveSession {
   sessionTimeoutSeconds: number | null = null;
 
   private _state: SessionState;
+  // Wall-clock time the process actually died, set on the first TERMINATED
+  // transition. Used by the manager's force-cleanup timer; lastActivity would
+  // be wrong because a long-idle session dies far after its last command.
+  private _terminatedAt: Date | null = null;
   pty: PtyHandler;
   readonly outputBuffer: CircularBuffer;
 
@@ -55,6 +66,9 @@ export class InteractiveSession {
   private _inputWaiters: Array<() => void> = [];
   private _isShutdown = false;
   private _writerTask: Promise<void> | null = null;
+  // Serialises terminate()/cleanup() so concurrent callers cannot double-kill
+  // the process or deliver a stale exit code to waiters.
+  private readonly _lifecycleLock = new Mutex();
 
   constructor(sessionId: string, bufferSize?: number, private readonly _settings: Settings = getSettings()) {
     this.sessionId = sessionId;
@@ -69,15 +83,29 @@ export class InteractiveSession {
   }
 
   set state(value: SessionState) {
+    if (value === SessionState.TERMINATED && this._terminatedAt === null) {
+      this._terminatedAt = new Date();
+    }
     this._state = value;
   }
 
-  isAlive(): boolean {
+  /** Wall-clock time the session first became TERMINATED, or null if still alive. */
+  get terminatedAt(): Date | null {
+    return this._terminatedAt;
+  }
+
+  /**
+   * Check whether the session is alive, syncing state as a side effect.
+   * If the underlying PTY process has died since the last check, this
+   * transitions _state to TERMINATED and signals the writer to stop.
+   * Named checkAlive (not isAlive) to signal that it is not a pure predicate.
+   */
+  checkAlive(): boolean {
     if (this._state === SessionState.TERMINATED) return false;
 
     const processAlive = this.pty.isProcessAlive();
     if (!processAlive && this._state === SessionState.ACTIVE) {
-      this._state = SessionState.TERMINATED;
+      this.state = SessionState.TERMINATED;
       this._signalShutdown();
       return false;
     }
@@ -111,9 +139,7 @@ export class InteractiveSession {
           // circular buffer's eviction logic bounds memory correctly.
           const appendChunk = (chunk: string): void => {
             this.outputBuffer.append(chunk).catch(() => {
-              if (this._state === SessionState.ACTIVE) {
-                this._state = SessionState.TERMINATED;
-              }
+              this._markDead();
               this._signalShutdown();
             });
           };
@@ -128,13 +154,18 @@ export class InteractiveSession {
         },
         (_exitCode: number) => {
           if (this._state !== SessionState.TERMINATED) {
-            this._state = SessionState.TERMINATED;
+            this.state = SessionState.TERMINATED;
             this._signalShutdown();
           }
         },
       );
 
-      this._state = SessionState.ACTIVE;
+      // Only promote to ACTIVE if the session is still creating. A fast process
+      // death during startup may already have flipped us to TERMINATED via the
+      // onData/onExit handlers; do not resurrect it into an undead ACTIVE state.
+      if (this._state === SessionState.CREATING) {
+        this._state = SessionState.ACTIVE;
+      }
       this._writerTask = this._writeInput();
     } catch (e) {
       this._state = SessionState.ERROR;
@@ -144,7 +175,7 @@ export class InteractiveSession {
   }
 
   async sendCommand(command: string): Promise<void> {
-    if (!this.isAlive()) {
+    if (!this.checkAlive()) {
       throw new SessionTerminatedError(`Session ${this.sessionId} is not active`, this.sessionId);
     }
 
@@ -163,6 +194,11 @@ export class InteractiveSession {
       command_number: this.commandCount + 1,
       execution_start: Date.now() / 1000,
     });
+    // Bound history so a long-lived session cannot grow it without limit.
+    // command_number keeps increasing, so dropping the oldest entry is safe.
+    if (this.commandHistory.length > MAX_COMMAND_HISTORY) {
+      this.commandHistory.shift();
+    }
 
     const data = command.endsWith("\n") ? command : command + "\n";
     this._inputQueue.push(data);
@@ -177,7 +213,7 @@ export class InteractiveSession {
   async readOutput(timeoutMs = 1000): Promise<InteractiveExecResult> {
     const startTime = Date.now();
 
-    if (!this.isAlive()) {
+    if (!this.checkAlive()) {
       // Drain-before-reject: a fast-exiting command (e.g. "exit") can flip
       // _state to TERMINATED between sendCommand and readOutput because
       // sendCommand is synchronous and the event loop runs onExit at the
@@ -252,7 +288,7 @@ export class InteractiveSession {
     return {
       sessionId: this.sessionId,
       createdAt: this.createdAt.toISOString(),
-      isAlive: this.isAlive(),
+      isAlive: this.checkAlive(),
       commandCount: this.commandCount,
       bufferSize: this.outputBuffer.size,
       uptimeSeconds: uptime,
@@ -261,39 +297,60 @@ export class InteractiveSession {
   }
 
   async terminate(force = false): Promise<void> {
-    if (this._state === SessionState.TERMINATED) return;
+    await this._lifecycleLock.runExclusive(async () => {
+      if (this._state === SessionState.TERMINATED) return;
 
-    this._state = SessionState.TERMINATED;
-    this._signalShutdown();
+      if (this._inputQueue.length > 0) {
+        getLogger("session").warn(
+          `Session ${this.sessionId}: discarding ${this._inputQueue.length} pending command(s) on terminate`,
+        );
+        this._inputQueue.length = 0;
+      }
+      this.state = SessionState.TERMINATED;
+      this._signalShutdown();
 
-    await this.pty.terminateProcess(force);
-    await this.pty.cleanup();
+      await this.pty.terminateProcess(force);
+      await this.pty.cleanup();
 
-    if (this._writerTask !== null) {
-      await this._writerTask;
-      this._writerTask = null;
-    }
+      if (this._writerTask !== null) {
+        await this._writerTask;
+        this._writerTask = null;
+      }
+    });
   }
 
   async cleanup(): Promise<void> {
-    if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
-      this._state = SessionState.TERMINATED;
-    }
-    this._signalShutdown();
+    await this._lifecycleLock.runExclusive(async () => {
+      if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
+        this.state = SessionState.TERMINATED;
+      }
+      this._signalShutdown();
 
-    if (this._writerTask !== null) {
-      await this._writerTask;
-      this._writerTask = null;
-    }
+      if (this._writerTask !== null) {
+        await this._writerTask;
+        this._writerTask = null;
+      }
 
-    await this.pty.cleanup();
-    await this.outputBuffer.clear();
+      await this.pty.cleanup();
+      await this.outputBuffer.clear();
+    });
   }
 
   private _signalShutdown(): void {
     this._isShutdown = true;
     const waiters = this._inputWaiters.splice(0);
     for (const w of waiters) w();
+  }
+
+  /**
+   * Transition to TERMINATED from any non-terminal state (idempotent). Covers
+   * CREATING as well as ACTIVE so a session that dies mid-startup is never left
+   * stranded as an uncollectable CREATING zombie.
+   */
+  private _markDead(): void {
+    if (this._state !== SessionState.TERMINATED && this._state !== SessionState.ERROR) {
+      this.state = SessionState.TERMINATED;
+    }
   }
 
   private async _writeInput(): Promise<void> {
@@ -304,9 +361,7 @@ export class InteractiveSession {
         try {
           this.pty.writeInput(data);
         } catch {
-          if (this._state === SessionState.ACTIVE) {
-            this._state = SessionState.TERMINATED;
-          }
+          this._markDead();
           this._signalShutdown();
           break;
         }
@@ -355,12 +410,18 @@ export class InteractiveSession {
     return undefined;
   }
 
-  /** Update lastActivity and backfill the last history entry after a read. */
+  /**
+   * Update lastActivity and backfill history entries after a read. Walks back
+   * over every trailing entry still missing execution_time, stopping at the
+   * first already-recorded one, so commands batched into a single readOutput
+   * all get timing instead of only the most recent.
+   */
   private _recordReadResult(outputLength: number, executionTime: number): void {
-    const last = this.commandHistory[this.commandHistory.length - 1];
-    if (last && last.execution_time === undefined) {
-      last.execution_time = executionTime;
-      last.output_length = outputLength;
+    for (let i = this.commandHistory.length - 1; i >= 0; i--) {
+      const entry = this.commandHistory[i];
+      if (!entry || entry.execution_time !== undefined) break;
+      entry.execution_time = executionTime;
+      entry.output_length = outputLength;
     }
     this.lastActivity = new Date();
   }
@@ -401,7 +462,7 @@ export class InteractiveSession {
     return {
       session_id: this.sessionId,
       state: this._state,
-      is_alive: this.isAlive(),
+      is_alive: this.checkAlive(),
       created_at: this.createdAt.toISOString(),
       last_activity: this.lastActivity.toISOString(),
       uptime_seconds: uptimeSeconds,
@@ -439,8 +500,9 @@ export class InteractiveSession {
     // Sort by timestamp, most recent first.
     history.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0));
 
-    // Match Python's truthy check: limit === 0 leaves the list unsliced.
-    if (limit) {
+    // Only a positive limit slices. A zero or negative limit leaves the list
+    // intact rather than letting `slice(0, -n)` silently drop recent entries.
+    if (limit !== undefined && limit > 0) {
       history = history.slice(0, limit);
     }
 

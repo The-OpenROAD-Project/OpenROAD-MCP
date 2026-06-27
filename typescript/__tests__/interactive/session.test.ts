@@ -3,6 +3,7 @@ import { InteractiveSession } from "../../src/interactive/session.js";
 import { SessionState } from "../../src/core/models.js";
 import { SessionError, SessionTerminatedError } from "../../src/interactive/models.js";
 import { Settings } from "../../src/config/settings.js";
+import { MAX_COMMAND_HISTORY } from "../../src/constants.js";
 import type { PtyHandler } from "../../src/interactive/pty_handler.js";
 
 vi.mock("node-pty", () => ({ spawn: vi.fn() }));
@@ -39,7 +40,7 @@ describe("InteractiveSession", () => {
       expect(session.sessionId).toBe("test-session-1");
       expect(session.state).toBe(SessionState.CREATING);
       expect(session.commandCount).toBe(0);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
       expect(session.pty).not.toBeNull();
       expect(session.outputBuffer).not.toBeNull();
     });
@@ -216,7 +217,6 @@ describe("InteractiveSession", () => {
       await session.outputBuffer.append("% Exiting OpenROAD\r\n");
       session.state = SessionState.TERMINATED;
 
-      // Must NOT throw even though the session is terminated
       const result = await session.readOutput(100);
 
       expect(result.output).toContain("Exiting OpenROAD");
@@ -226,8 +226,8 @@ describe("InteractiveSession", () => {
 
     it("signals shutdown when readOutput detects terminated session so writer task does not loop indefinitely", async () => {
       // Spy on the private method to verify readOutput() calls it directly.
-      // Scenario: _state was flipped to TERMINATED externally (e.g. via the setter)
-      // without calling _signalShutdown() — the exact gap @luarss identified.
+      // Scenario: _state was flipped to TERMINATED externally (e.g. via the
+      // setter) without calling _signalShutdown().
       const signalShutdown = vi.spyOn(session as unknown as { _signalShutdown: () => void }, "_signalShutdown");
 
       session.state = SessionState.TERMINATED;
@@ -255,17 +255,17 @@ describe("InteractiveSession", () => {
     });
   });
 
-  describe("isAlive", () => {
+  describe("checkAlive", () => {
     it("returns false in CREATING state", () => {
       expect(session.state).toBe(SessionState.CREATING);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
 
     it("returns false in ACTIVE state when process is dead", () => {
       session.state = SessionState.ACTIVE;
       (mockPty.isProcessAlive as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
       expect(session.state).toBe(SessionState.TERMINATED);
     });
 
@@ -286,13 +286,13 @@ describe("InteractiveSession", () => {
       session.state = SessionState.ACTIVE;
       (mockPty.isProcessAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
-      expect(session.isAlive()).toBe(true);
+      expect(session.checkAlive()).toBe(true);
       expect(session.state).toBe(SessionState.ACTIVE);
     });
 
     it("returns false in TERMINATED state", () => {
       session.state = SessionState.TERMINATED;
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
   });
 
@@ -326,12 +326,11 @@ describe("InteractiveSession", () => {
     it("calls pty.cleanup() so listeners and pending resolvers are disposed without a subsequent session.cleanup()", async () => {
       session.state = SessionState.ACTIVE;
 
-      // terminate() without any follow-up cleanup() call
       await session.terminate(false);
 
-      // pty.cleanup() must have been called to dispose _dataDisposable,
-      // _exitDisposable, and drain _exitResolvers — otherwise post-kill
-      // data bursts keep appending and waitForExit() callers hang forever
+      // pty.cleanup() must run to dispose _dataDisposable, _exitDisposable,
+      // and drain _exitResolvers; otherwise post-kill data bursts keep
+      // appending and waitForExit() callers hang forever.
       expect(mockPty.cleanup).toHaveBeenCalledOnce();
     });
   });
@@ -419,7 +418,6 @@ describe("InteractiveSession", () => {
       await session.start(["echo"]);
       session.state = SessionState.TERMINATED;
 
-      // Should not throw or double-signal shutdown
       capturedOnExit?.(0);
       expect(session.state).toBe(SessionState.TERMINATED);
     });
@@ -436,7 +434,7 @@ describe("InteractiveSession", () => {
       await new Promise<void>((r) => setTimeout(r, 5));
 
       expect(session.state).toBe(SessionState.TERMINATED);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
 
     it("onData data exactly at READ_CHUNK_SIZE is a single append, not sliced", async () => {
@@ -541,7 +539,7 @@ describe("InteractiveSession", () => {
 
       expect(mockPty.writeInput).toHaveBeenCalled();
       expect(session.state).toBe(SessionState.TERMINATED);
-      expect(session.isAlive()).toBe(false);
+      expect(session.checkAlive()).toBe(false);
     });
 
     it("subsequent sendCommand throws SessionTerminatedError after writer failure", async () => {
@@ -622,6 +620,30 @@ describe("InteractiveSession", () => {
       expect(session.commandHistory[0]!.command).toBe("puts hi");
     });
 
+    it("records execution_time for every command batched into one readOutput", async () => {
+      await session.sendCommand("cmd_a");
+      await session.sendCommand("cmd_b");
+      await session.readOutput(50);
+
+      expect(session.commandHistory[0]!.execution_time).toBeDefined();
+      expect(session.commandHistory[1]!.execution_time).toBeDefined();
+    });
+
+    it("bounds commandHistory at MAX_COMMAND_HISTORY, dropping the oldest", async () => {
+      // Large queue so rapid sends never hit the input-queue-full guard.
+      const s = new InteractiveSession("hist-cap", 1024, new Settings({ SESSION_QUEUE_SIZE: 1_000_000 }));
+      s.pty = makeMockPty();
+      await s.start();
+
+      const total = MAX_COMMAND_HISTORY + 5;
+      for (let i = 1; i <= total; i++) await s.sendCommand(`c${i}`);
+
+      expect(s.commandHistory).toHaveLength(MAX_COMMAND_HISTORY);
+      // Oldest entries dropped: first retained command_number is total - MAX + 1.
+      expect(s.commandHistory[0]!.command_number).toBe(total - MAX_COMMAND_HISTORY + 1);
+      await s.cleanup();
+    });
+
     it("getCommandHistory filters by search (case-insensitive)", async () => {
       await session.sendCommand("report_wns");
       await session.sendCommand("get_nets foo");
@@ -641,6 +663,13 @@ describe("InteractiveSession", () => {
       const limited = session.getCommandHistory(1);
       expect(limited).toHaveLength(1);
       expect(limited[0]!.command).toBe("cmd_b");
+    });
+
+    it("getCommandHistory ignores a negative limit instead of dropping entries", async () => {
+      await session.sendCommand("cmd_a");
+      await session.sendCommand("cmd_b");
+      const all = session.getCommandHistory(-1);
+      expect(all).toHaveLength(2);
     });
 
     it("getDetailedMetrics returns the full nested shape", async () => {

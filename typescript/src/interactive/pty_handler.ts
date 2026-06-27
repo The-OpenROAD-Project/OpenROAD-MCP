@@ -15,7 +15,6 @@ export class PtyHandler {
 
   constructor(private readonly _settings: Settings = getSettings()) {}
 
-  /** PID of the underlying PTY process, or null if no process is active. */
   get pid(): number | null {
     return this._ptyProcess?.pid ?? null;
   }
@@ -89,17 +88,21 @@ export class PtyHandler {
       this._alive = true;
       this._exitCode = null;
 
-      if (onData) {
-        this._dataDisposable = this._ptyProcess.onData(onData);
-      }
-
+      // Register exit before onData so a fast-exiting process cannot slip
+      // its exit event through before we are listening. The guard keeps the
+      // handler idempotent against a double-delivered exit.
       this._exitDisposable = this._ptyProcess.onExit(({ exitCode }) => {
+        if (!this._alive && this._exitCode !== null) return;
         this._alive = false;
         this._exitCode = exitCode;
         const resolvers = this._exitResolvers.splice(0);
         for (const resolve of resolvers) resolve(exitCode);
         onExit?.(exitCode);
       });
+
+      if (onData) {
+        this._dataDisposable = this._ptyProcess.onData(onData);
+      }
     } catch (e) {
       if (e instanceof PTYError) throw e;
       throw new PTYError(`Failed to create PTY session: ${e}`);
@@ -118,12 +121,25 @@ export class PtyHandler {
   }
 
   isProcessAlive(): boolean {
-    return this._alive;
+    if (!this._alive || !this._ptyProcess) return false;
+    // Defensive liveness probe in case the exit event was missed; signal 0
+    // sends nothing, it only tests the pid.
+    try {
+      process.kill(this._ptyProcess.pid, 0);
+      return true;
+    } catch (e) {
+      // EPERM means the pid exists but we may not signal it (e.g. re-parented
+      // or owned by another user) — the process is still alive. Only ESRCH (no
+      // such pid) and other failures mean it is gone.
+      if ((e as NodeJS.ErrnoException).code === "EPERM") return true;
+      this._alive = false;
+      return false;
+    }
   }
 
   async waitForExit(timeoutMs?: number): Promise<number | null> {
-    if (!this._ptyProcess) return null;
     if (this._exitCode !== null) return this._exitCode;
+    if (!this._ptyProcess) return null;
 
     return new Promise<number | null>((resolve) => {
       let settled = false;
@@ -174,9 +190,9 @@ export class PtyHandler {
   async cleanup(): Promise<void> {
     if (this._alive) {
       try {
-        await this.terminateProcess();
+        await this.terminateProcess(true);
       } catch {
-        // Best effort - don't let terminate errors prevent state reset
+        // best effort
       }
     }
 
@@ -190,6 +206,7 @@ export class PtyHandler {
     this._alive = false;
     this._dataDisposable = null;
     this._exitDisposable = null;
-    this._exitCode = null;
+    // Preserve _exitCode so a late waitForExit() caller still sees the real
+    // exit code; createSession() resets it on reuse.
   }
 }

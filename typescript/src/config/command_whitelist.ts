@@ -76,17 +76,14 @@ export const EXEC_ONLY_PATTERNS: readonly string[] = [
 ];
 
 // Safe Tcl built-ins - usable in both tools.
+// Intentionally excludes body-eval builtins (if, for, foreach, while, proc,
+// catch, namespace, uplevel) because they accept a script body argument and
+// can therefore wrap any dangerous command: `catch { exec ls }` would pass the
+// verb check on `catch` alone. Those builtins belong in the exec tool.
 export const _TCL_BUILTINS: readonly string[] = [
   "puts",
   "set",
   "expr",
-  "if",
-  "else",
-  "elseif",
-  "for",
-  "foreach",
-  "while",
-  "proc",
   "return",
   "break",
   "continue",
@@ -105,9 +102,7 @@ export const _TCL_BUILTINS: readonly string[] = [
   "scan",
   "array",
   "dict",
-  "catch",
   "error",
-  "namespace",
   "upvar",
   "global",
   "variable",
@@ -167,18 +162,100 @@ export function extractVerb(statement: string): string | null {
   return firstToken.replace(/;+$/, "");
 }
 
-/** Iterate the verbs of a command, mirroring Python's naive `;`->newline split. */
+// Unicode line-boundary characters that Python's str.splitlines() recognises.
+// Treating every one of these (not just \n) as a statement separator closes a
+// \r-based bypass where a second command is hidden after a carriage return.
+const STATEMENT_SEPARATORS: ReadonlySet<string> = new Set([
+  "\n",
+  "\r",
+  "\v",
+  "\f",
+  "\x1c",
+  "\x1d",
+  "\x1e",
+  "\x85",
+  " ",
+  " ",
+]);
+
+/**
+ * Split a Tcl command string into individual statements, respecting quoted
+ * strings and brace groups so that separators inside them are not treated as
+ * statement boundaries (e.g. `puts "hello; world"` is one statement). Statement
+ * separators are `;` plus every Unicode line boundary in STATEMENT_SEPARATORS,
+ * so a bare \r cannot hide a second command from the verb check.
+ */
+function splitTclStatements(command: string): string[] {
+  const stmts: string[] = [];
+  let depth = 0;
+  let inQuote = false;
+  let current = "";
+  // In Tcl a `"` only opens a quoted string at the start of a word; a quote in
+  // the middle of a word (e.g. `a"b`) is a literal. Track word boundaries so an
+  // unbalanced mid-word quote cannot flip us into quote mode and swallow the
+  // separator that follows it.
+  let atWordStart = true;
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (ch === "\\" && i + 1 < command.length) {
+      current += ch + command[i + 1]!;
+      i++;
+      atWordStart = false;
+    } else if (ch === '"' && depth === 0 && (inQuote || atWordStart)) {
+      inQuote = !inQuote;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && ch === "{") {
+      depth++;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && ch === "}") {
+      // Clamp at zero: an unbalanced close brace must not drive depth negative,
+      // which would make the `depth === 0` separator test below permanently
+      // false and hide every subsequent statement from the verb check.
+      if (depth > 0) depth--;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && depth === 0 && (ch === ";" || STATEMENT_SEPARATORS.has(ch))) {
+      stmts.push(current);
+      current = "";
+      atWordStart = true;
+    } else {
+      current += ch;
+      // Whitespace and `[` (which begins a command substitution) start a new
+      // word, so a `"` immediately after them is again quote-significant.
+      atWordStart = ch === " " || ch === "\t" || ch === "[";
+    }
+  }
+  if (current) stmts.push(current);
+  return stmts;
+}
+
+/**
+ * Iterate the verbs of a Tcl command string.
+ *
+ * Per statement, in a Tcl-aware split (separators inside quotes/braces are
+ * ignored; `;` plus all Unicode line boundaries are separators so a \r cannot
+ * hide a command), two kinds of verb are yielded:
+ * 1. The statement verb — its leading token.
+ * 2. Bracket verbs — the word following each `[` (bracket substitution). This
+ *    catches `set x [exec ls]` where the outer verb `set` is safe but the
+ *    substituted command `exec` is not.
+ *
+ * Comment and blank statements (extractVerb returns null) are skipped entirely,
+ * including their brackets: a `#` comment is discarded at Tcl parse time and is
+ * never executed, so `# harmless [exec ls]` must not be rejected on the `exec`.
+ * Brackets inside brace-quoted arguments are still scanned, because commands
+ * like `expr`/`eval` re-evaluate brace contents, so they cannot be assumed inert.
+ */
 function* iterVerbs(command: string): Generator<string> {
-  // Replace ';' with newline, then split on all Unicode line boundaries that
-  // Python's str.splitlines() recognises. \r\n must precede \r so the pair is
-  // consumed as one separator. Semicolons inside Tcl braces or quoted strings
-  // are not handled - this matches the Python implementation's known limitation.
-  for (const rawLine of command
-    .replace(/;/g, "\n")
-    .split(/\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]/)) {
-    const verb = extractVerb(rawLine);
-    if (verb !== null) {
-      yield verb;
+  for (const stmt of splitTclStatements(command)) {
+    const verb = extractVerb(stmt);
+    if (verb === null) continue;
+    yield verb;
+    for (const match of stmt.matchAll(/\[\s*(?::+)?(\w+)/g)) {
+      yield match[1]!;
     }
   }
 }
