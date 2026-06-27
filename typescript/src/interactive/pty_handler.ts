@@ -123,11 +123,15 @@ export class PtyHandler {
   isProcessAlive(): boolean {
     if (!this._alive || !this._ptyProcess) return false;
     // Defensive liveness probe in case the exit event was missed; signal 0
-    // detects a dead/reaped pid via ESRCH.
+    // sends nothing, it only tests the pid.
     try {
       process.kill(this._ptyProcess.pid, 0);
       return true;
-    } catch {
+    } catch (e) {
+      // EPERM means the pid exists but we may not signal it (e.g. re-parented
+      // or owned by another user) — the process is still alive. Only ESRCH (no
+      // such pid) and other failures mean it is gone.
+      if ((e as NodeJS.ErrnoException).code === "EPERM") return true;
       this._alive = false;
       return false;
     }

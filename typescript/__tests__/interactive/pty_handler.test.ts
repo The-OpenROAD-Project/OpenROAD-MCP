@@ -163,6 +163,24 @@ describe("PtyHandler", () => {
       mockPty._exit(0);
       expect(handler.isProcessAlive()).toBe(false);
     });
+
+    it("returns false when the probe throws ESRCH (pid gone)", async () => {
+      await handler.createSession(["echo"]);
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
+        throw Object.assign(new Error("kill ESRCH"), { code: "ESRCH" });
+      });
+      expect(handler.isProcessAlive()).toBe(false);
+      killSpy.mockRestore();
+    });
+
+    it("returns true when the probe throws EPERM (pid exists, not signalable)", async () => {
+      await handler.createSession(["echo"]);
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
+        throw Object.assign(new Error("kill EPERM"), { code: "EPERM" });
+      });
+      expect(handler.isProcessAlive()).toBe(true);
+      killSpy.mockRestore();
+    });
   });
 
   describe("waitForExit", () => {
