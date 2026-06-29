@@ -176,9 +176,9 @@ export class OpenROADManager {
       try {
         const metrics = await session.getDetailedMetrics();
         sessionDetails.push(metrics);
-        totalCommands += metrics.commands.total_executed;
-        totalCpuTime += metrics.performance.total_cpu_time;
-        totalMemoryMb += metrics.performance.current_memory_mb;
+        totalCommands += metrics.commands.totalExecuted;
+        totalCpuTime += metrics.performance.totalCpuTime;
+        totalMemoryMb += metrics.performance.currentMemoryMb;
       } catch (e) {
         this.logger.warn(`Failed to get metrics for session ${session.sessionId}: ${String(e)}`);
       }
@@ -192,17 +192,17 @@ export class OpenROADManager {
 
     return {
       manager: {
-        total_sessions: totalSessions,
-        active_sessions: activeSessions,
-        terminated_sessions: terminatedSessions,
-        max_sessions: this.maxSessions,
-        utilization_percent: this.maxSessions > 0 ? (activeSessions / this.maxSessions) * 100 : 0,
+        totalSessions,
+        activeSessions,
+        terminatedSessions,
+        maxSessions: this.maxSessions,
+        utilizationPercent: this.maxSessions > 0 ? (activeSessions / this.maxSessions) * 100 : 0,
       },
       aggregate: {
-        total_commands: totalCommands,
-        total_cpu_time: totalCpuTime,
-        total_memory_mb: totalMemoryMb,
-        avg_memory_per_session: activeSessions > 0 ? totalMemoryMb / activeSessions : 0,
+        totalCommands,
+        totalCpuTime,
+        totalMemoryMb,
+        avgMemoryPerSession: activeSessions > 0 ? totalMemoryMb / activeSessions : 0,
       },
       sessions: sessionDetails,
     };

@@ -191,8 +191,8 @@ export class InteractiveSession {
     this.commandHistory.push({
       command: command.trim(),
       timestamp: new Date().toISOString(),
-      command_number: this.commandCount + 1,
-      execution_start: Date.now() / 1000,
+      commandNumber: this.commandCount + 1,
+      executionStart: Date.now() / 1000,
     });
     // Bound history so a long-lived session cannot grow it without limit.
     // command_number keeps increasing, so dropping the oldest entry is safe.
@@ -419,9 +419,9 @@ export class InteractiveSession {
   private _recordReadResult(outputLength: number, executionTime: number): void {
     for (let i = this.commandHistory.length - 1; i >= 0; i--) {
       const entry = this.commandHistory[i];
-      if (!entry || entry.execution_time !== undefined) break;
-      entry.execution_time = executionTime;
-      entry.output_length = outputLength;
+      if (!entry || entry.executionTime !== undefined) break;
+      entry.executionTime = executionTime;
+      entry.outputLength = outputLength;
     }
     this.lastActivity = new Date();
   }
@@ -460,31 +460,31 @@ export class InteractiveSession {
     const maxSize = this.outputBuffer.maxSize;
 
     return {
-      session_id: this.sessionId,
+      sessionId: this.sessionId,
       state: this._state,
-      is_alive: this.checkAlive(),
-      created_at: this.createdAt.toISOString(),
-      last_activity: this.lastActivity.toISOString(),
-      uptime_seconds: uptimeSeconds,
-      idle_seconds: idleSeconds,
+      isAlive: this.checkAlive(),
+      createdAt: this.createdAt.toISOString(),
+      lastActivity: this.lastActivity.toISOString(),
+      uptimeSeconds,
+      idleSeconds,
       commands: {
-        total_executed: this.totalCommandsExecuted,
-        current_count: this.commandCount,
-        history_length: this.commandHistory.length,
+        totalExecuted: this.totalCommandsExecuted,
+        currentCount: this.commandCount,
+        historyLength: this.commandHistory.length,
       },
       performance: {
-        total_cpu_time: this.totalCpuTime,
-        peak_memory_mb: this.peakMemoryMb,
-        current_memory_mb: currentMemoryMb,
+        totalCpuTime: this.totalCpuTime,
+        peakMemoryMb: this.peakMemoryMb,
+        currentMemoryMb,
       },
       buffer: {
-        current_size: bufferSize,
-        max_size: maxSize,
-        utilization_percent: maxSize > 0 ? (bufferSize / maxSize) * UTILIZATION_PERCENTAGE_BASE : 0,
+        currentSize: bufferSize,
+        maxSize,
+        utilizationPercent: maxSize > 0 ? (bufferSize / maxSize) * UTILIZATION_PERCENTAGE_BASE : 0,
       },
       timeout: {
-        configured_seconds: this.sessionTimeoutSeconds,
-        is_timed_out: this._checkSessionTimeout(),
+        configuredSeconds: this.sessionTimeoutSeconds,
+        isTimedOut: this._checkSessionTimeout(),
       },
     };
   }
@@ -511,7 +511,7 @@ export class InteractiveSession {
 
   async replayCommand(commandNumber: number): Promise<string> {
     for (const cmd of this.commandHistory) {
-      if (cmd.command_number === commandNumber) {
+      if (cmd.commandNumber === commandNumber) {
         await this.sendCommand(cmd.command);
         return cmd.command;
       }

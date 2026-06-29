@@ -609,8 +609,8 @@ describe("InteractiveSession", () => {
 
       expect(session.commandHistory).toHaveLength(1);
       expect(session.commandHistory[0]!.command).toBe("report_wns");
-      expect(session.commandHistory[0]!.command_number).toBe(1);
-      expect(typeof session.commandHistory[0]!.execution_start).toBe("number");
+      expect(session.commandHistory[0]!.commandNumber).toBe(1);
+      expect(typeof session.commandHistory[0]!.executionStart).toBe("number");
       expect(session.totalCommandsExecuted).toBe(1);
       expect(session.lastActivity.getTime()).toBeGreaterThanOrEqual(before);
     });
@@ -625,8 +625,8 @@ describe("InteractiveSession", () => {
       await session.sendCommand("cmd_b");
       await session.readOutput(50);
 
-      expect(session.commandHistory[0]!.execution_time).toBeDefined();
-      expect(session.commandHistory[1]!.execution_time).toBeDefined();
+      expect(session.commandHistory[0]!.executionTime).toBeDefined();
+      expect(session.commandHistory[1]!.executionTime).toBeDefined();
     });
 
     it("bounds commandHistory at MAX_COMMAND_HISTORY, dropping the oldest", async () => {
@@ -640,7 +640,7 @@ describe("InteractiveSession", () => {
 
       expect(s.commandHistory).toHaveLength(MAX_COMMAND_HISTORY);
       // Oldest entries dropped: first retained command_number is total - MAX + 1.
-      expect(s.commandHistory[0]!.command_number).toBe(total - MAX_COMMAND_HISTORY + 1);
+      expect(s.commandHistory[0]!.commandNumber).toBe(total - MAX_COMMAND_HISTORY + 1);
       await s.cleanup();
     });
 
@@ -676,13 +676,13 @@ describe("InteractiveSession", () => {
       await session.sendCommand("report_wns");
       const m = await session.getDetailedMetrics();
 
-      expect(m.session_id).toBe("test-session-1");
-      expect(m.is_alive).toBe(true);
-      expect(m.commands.total_executed).toBe(1);
-      expect(m.commands.history_length).toBe(1);
-      expect(m.buffer.max_size).toBe(1024);
-      expect(m.timeout.configured_seconds).toBeNull();
-      expect(m.timeout.is_timed_out).toBe(false);
+      expect(m.sessionId).toBe("test-session-1");
+      expect(m.isAlive).toBe(true);
+      expect(m.commands.totalExecuted).toBe(1);
+      expect(m.commands.historyLength).toBe(1);
+      expect(m.buffer.maxSize).toBe(1024);
+      expect(m.timeout.configuredSeconds).toBeNull();
+      expect(m.timeout.isTimedOut).toBe(false);
     });
 
     it("isIdleTimeout is false right after activity, true past the threshold", async () => {
@@ -702,8 +702,8 @@ describe("InteractiveSession", () => {
       session.createdAt.setTime(Date.now() - 10_000);
 
       const m = await session.getDetailedMetrics();
-      expect(m.timeout.configured_seconds).toBe(1);
-      expect(m.timeout.is_timed_out).toBe(true);
+      expect(m.timeout.configuredSeconds).toBe(1);
+      expect(m.timeout.isTimedOut).toBe(true);
     });
 
     it("readOutput backfills execution_time and output_length on the last entry", async () => {
@@ -712,8 +712,8 @@ describe("InteractiveSession", () => {
       await session.readOutput(100);
 
       const entry = session.commandHistory[0]!;
-      expect(entry.execution_time).toBeGreaterThanOrEqual(0);
-      expect(entry.output_length).toBeGreaterThan(0);
+      expect(entry.executionTime).toBeGreaterThanOrEqual(0);
+      expect(entry.outputLength).toBeGreaterThan(0);
     });
 
     it("filterOutput returns matching lines (regex, case-insensitive)", async () => {

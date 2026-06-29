@@ -37,24 +37,24 @@ function makeSessionInfo(overrides: Partial<InteractiveSessionInfo> = {}): Inter
 
 function makeMetrics(sessionId = "session-1"): SessionDetailedMetrics {
   return {
-    session_id: sessionId,
+    sessionId,
     state: SessionState.ACTIVE,
-    is_alive: true,
-    created_at: NOW,
-    last_activity: NOW,
-    uptime_seconds: 1,
-    idle_seconds: 0,
-    commands: { total_executed: 1, current_count: 1, history_length: 1 },
-    performance: { total_cpu_time: 0.1, peak_memory_mb: 10, current_memory_mb: 8 },
-    buffer: { current_size: 0, max_size: 1024, utilization_percent: 0 },
-    timeout: { configured_seconds: null, is_timed_out: false },
+    isAlive: true,
+    createdAt: NOW,
+    lastActivity: NOW,
+    uptimeSeconds: 1,
+    idleSeconds: 0,
+    commands: { totalExecuted: 1, currentCount: 1, historyLength: 1 },
+    performance: { totalCpuTime: 0.1, peakMemoryMb: 10, currentMemoryMb: 8 },
+    buffer: { currentSize: 0, maxSize: 1024, utilizationPercent: 0 },
+    timeout: { configuredSeconds: null, isTimedOut: false },
   };
 }
 
 function makeManagerMetrics(): ManagerMetrics {
   return {
-    manager: { total_sessions: 1, active_sessions: 1, terminated_sessions: 0, max_sessions: 50, utilization_percent: 2 },
-    aggregate: { total_commands: 5, total_cpu_time: 0.5, total_memory_mb: 8, avg_memory_per_session: 8 },
+    manager: { totalSessions: 1, activeSessions: 1, terminatedSessions: 0, maxSessions: 50, utilizationPercent: 2 },
+    aggregate: { totalCommands: 5, totalCpuTime: 0.5, totalMemoryMb: 8, avgMemoryPerSession: 8 },
     sessions: [makeMetrics()],
   };
 }
@@ -345,7 +345,7 @@ describe("SessionHistoryTool", () => {
 
   it("returns session history", async () => {
     mgr.getSessionHistory.mockResolvedValue([
-      { command: "help", timestamp: NOW, command_number: 1, execution_start: 0 },
+      { command: "help", timestamp: NOW, commandNumber: 1, executionStart: 0 },
     ]);
     const raw = await tool.execute("session-1");
     const result = JSON.parse(raw);

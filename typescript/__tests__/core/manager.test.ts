@@ -31,17 +31,17 @@ interface MockSession {
 
 function makeMockSession(sessionId: string, alive = true): MockSession {
   const metrics: SessionDetailedMetrics = {
-    session_id: sessionId,
+    sessionId,
     state: SessionState.ACTIVE,
-    is_alive: alive,
-    created_at: new Date().toISOString(),
-    last_activity: new Date().toISOString(),
-    uptime_seconds: 1,
-    idle_seconds: 0,
-    commands: { total_executed: 3, current_count: 3, history_length: 3 },
-    performance: { total_cpu_time: 0.5, peak_memory_mb: 10, current_memory_mb: 8 },
-    buffer: { current_size: 0, max_size: 1024, utilization_percent: 0 },
-    timeout: { configured_seconds: null, is_timed_out: false },
+    isAlive: alive,
+    createdAt: new Date().toISOString(),
+    lastActivity: new Date().toISOString(),
+    uptimeSeconds: 1,
+    idleSeconds: 0,
+    commands: { totalExecuted: 3, currentCount: 3, historyLength: 3 },
+    performance: { totalCpuTime: 0.5, peakMemoryMb: 10, currentMemoryMb: 8 },
+    buffer: { currentSize: 0, maxSize: 1024, utilizationPercent: 0 },
+    timeout: { configuredSeconds: null, isTimedOut: false },
   };
 
   return {
@@ -224,7 +224,7 @@ describe("OpenROADManager", () => {
       await manager.createSession({ sessionId: "s1" });
       const metrics = await manager.inspectSession("s1");
       expect(created[0]!.getDetailedMetrics).toHaveBeenCalledOnce();
-      expect(metrics.session_id).toBe("s1");
+      expect(metrics.sessionId).toBe("s1");
     });
 
     it("getSessionHistory forwards limit and search", async () => {
@@ -239,9 +239,9 @@ describe("OpenROADManager", () => {
       await manager.createSession({ sessionId: "s1" });
       await manager.createSession({ sessionId: "s2" });
       const metrics = await manager.sessionMetrics();
-      expect(metrics.manager.total_sessions).toBe(2);
-      expect(metrics.manager.active_sessions).toBe(2);
-      expect(metrics.aggregate.total_commands).toBe(6); // 3 per mock session
+      expect(metrics.manager.totalSessions).toBe(2);
+      expect(metrics.manager.activeSessions).toBe(2);
+      expect(metrics.aggregate.totalCommands).toBe(6); // 3 per mock session
       expect(metrics.sessions).toHaveLength(2);
     });
   });
