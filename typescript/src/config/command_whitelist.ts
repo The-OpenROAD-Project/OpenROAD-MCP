@@ -147,19 +147,75 @@ function matchesAny(verb: string, matchers: readonly Minimatch[]): boolean {
 }
 
 /**
+ * Resolve Tcl backslash substitution within a single command word so an
+ * obfuscated verb matches the command Tcl will actually run. Tcl drops a
+ * backslash before an ordinary character (`\socket` -> `socket`) and decodes
+ * numeric escapes (`\x73`/`\163`/`s` -> `s`), so without this a blocked
+ * verb could be smuggled past the allowlist as its literal-backslash form. A
+ * real command name never contains a backslash, so this only normalises
+ * obfuscation and never alters a legitimate verb.
+ */
+function tclUnescape(token: string): string {
+  if (!token.includes("\\")) return token;
+  let out = "";
+  for (let i = 0; i < token.length; i++) {
+    if (token[i] !== "\\" || i + 1 >= token.length) {
+      out += token[i];
+      continue;
+    }
+    const c = token[i + 1]!;
+    const simple: Record<string, string> = {
+      a: "\x07", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v",
+    };
+    if (c in simple) {
+      out += simple[c];
+      i++;
+    } else if (c === "x") {
+      const m = /^[0-9a-fA-F]+/.exec(token.slice(i + 2));
+      if (m) {
+        out += String.fromCharCode(parseInt(m[0], 16) & 0xff);
+        i += 1 + m[0].length;
+      } else {
+        out += "x";
+        i++;
+      }
+    } else if (c === "u" || c === "U") {
+      const m = new RegExp(`^[0-9a-fA-F]{1,${c === "u" ? 4 : 8}}`).exec(token.slice(i + 2));
+      if (m) {
+        out += String.fromCodePoint(parseInt(m[0], 16));
+        i += 1 + m[0].length;
+      } else {
+        out += c;
+        i++;
+      }
+    } else if (c >= "0" && c <= "7") {
+      const m = /^[0-7]{1,3}/.exec(token.slice(i + 1))!;
+      out += String.fromCharCode(parseInt(m[0], 8) & 0xff);
+      i += m[0].length;
+    } else {
+      // Backslash before an ordinary char: drop the backslash, keep the char.
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/**
  * Return the command verb (first token) of a single Tcl statement.
  *
  * Returns null only for blank lines and comment lines. Lines that start with a
  * substitution or grouping character (`$`, `[`, `]`, `{`, `}`) are returned
- * as-is so the caller can reject them via the allowlist.
+ * as-is so the caller can reject them via the allowlist. Backslash escapes in
+ * the verb are resolved (see tclUnescape) so `\socket` is matched as `socket`.
  */
 export function extractVerb(statement: string): string | null {
   const stripped = statement.trim();
   if (stripped === "" || stripped.startsWith("#")) {
     return null;
   }
-  const firstToken = stripped.split(/\s+/)[0]!;
-  return firstToken.replace(/;+$/, "");
+  const firstToken = stripped.split(/\s+/)[0]!.replace(/;+$/, "");
+  return tclUnescape(firstToken);
 }
 
 // Unicode line-boundary characters that Python's str.splitlines() recognises.
@@ -254,8 +310,11 @@ function* iterVerbs(command: string): Generator<string> {
     const verb = extractVerb(stmt);
     if (verb === null) continue;
     yield verb;
-    for (const match of stmt.matchAll(/\[\s*(?::+)?(\w+)/g)) {
-      yield match[1]!;
+    // Capture word chars and backslash escapes after `[` so a backslash-
+    // obfuscated substituted command (`[\exec ls]`) is caught, then resolve
+    // the escapes to the verb Tcl runs.
+    for (const match of stmt.matchAll(/\[\s*(?::+)?((?:\\.|\w)+)/g)) {
+      yield tclUnescape(match[1]!).replace(/^:+/, "");
     }
   }
 }

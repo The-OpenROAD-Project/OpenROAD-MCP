@@ -258,6 +258,14 @@ describe("isQueryCommand", () => {
     expect(isQueryCommand("report_wns }; exec ls")).toEqual([false, "exec"]);
   });
 
+  it("blocks a backslash-escaped exec-only verb (\\glob -> glob)", () => {
+    expect(isQueryCommand("\\glob *")).toEqual([false, "glob"]);
+  });
+
+  it("blocks a backslash-escaped command in a bracket substitution", () => {
+    expect(isQueryCommand("puts [\\exec ls]")).toEqual([false, "exec"]);
+  });
+
   it("mid-word quote is literal and cannot hide a trailing exec", () => {
     expect(isQueryCommand('set x a"b ; exec ls')).toEqual([false, "exec"]);
   });
@@ -327,6 +335,17 @@ describe("isExecCommand", () => {
 
   it("unbalanced close brace cannot hide a trailing quit (depth clamp)", () => {
     expect(isExecCommand("set x } ; quit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks a backslash-escaped verb (\\socket -> socket)", () => {
+    expect(isExecCommand("\\socket localhost 1")).toEqual([false, "socket"]);
+    expect(isExecCommand("\\quit")).toEqual([false, "quit"]);
+    expect(isExecCommand("\\load /tmp/x")).toEqual([false, "load"]);
+  });
+
+  it("blocks a hex/octal-escaped verb (\\x73ocket / \\163ocket -> socket)", () => {
+    expect(isExecCommand("\\x73ocket localhost 1")).toEqual([false, "socket"]);
+    expect(isExecCommand("\\163ocket localhost 1")).toEqual([false, "socket"]);
   });
 });
 
