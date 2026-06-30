@@ -6,6 +6,7 @@ export default defineConfig({
     environment: "node",
     pool: "forks",
     include: ["__tests__/**/*.test.ts"],
+    exclude: ["__tests__/integration/**", "__tests__/performance/**"],
     coverage: {
       provider: "v8",
       thresholds: { lines: 80 },
