@@ -583,6 +583,12 @@ describe("InteractiveSession", () => {
       expect(result.error).toMatch(/Invalid command/);
     });
 
+    it("inserts captured text literally even when it contains $& replacement patterns", async () => {
+      await session.outputBuffer.append('invalid command name "foo$&bar"\n');
+      const result = await session.readOutput(100);
+      expect(result.error).toBe("Invalid command: foo$&bar");
+    });
+
     it("returns null error for clean output", async () => {
       await session.outputBuffer.append("openroad> \n");
       const result = await session.readOutput(100);

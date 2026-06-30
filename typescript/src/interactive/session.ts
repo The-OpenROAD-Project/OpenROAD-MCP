@@ -403,7 +403,9 @@ export class InteractiveSession {
       const match = pattern.exec(output);
       if (match) {
         const capture = match[1];
-        return capture ? template.replace("{0}", capture.trim()) : template;
+        // Function replacement so `$&`/`$1`/`$$` inside the captured error text
+        // are inserted literally, not reinterpreted as replacement patterns.
+        return capture ? template.replace("{0}", () => capture.trim()) : template;
       }
     }
 
