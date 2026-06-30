@@ -295,9 +295,17 @@ function splitTclStatements(command: string): string[] {
  * ignored; `;` plus all Unicode line boundaries are separators so a \r cannot
  * hide a command), two kinds of verb are yielded:
  * 1. The statement verb — its leading token.
- * 2. Bracket verbs — the word following each `[` (bracket substitution). This
- *    catches `set x [exec ls]` where the outer verb `set` is safe but the
- *    substituted command `exec` is not.
+ * 2. Bracket verbs — the command word following each `[` (bracket
+ *    substitution). This catches `set x [exec ls]` where the outer verb `set`
+ *    is safe but the substituted command `exec` is not.
+ *
+ * The bracket word is captured up to the first delimiter, so a substituted
+ * command whose name is itself dynamic is surfaced rather than skipped: a
+ * variable name (`[$x ls]`) yields `$x` and a nested substitution
+ * (`[[set x exec] ls]`) yields `[set`. Neither is in any allowlist, so the
+ * read-only tool rejects them instead of letting Tcl resolve `$x`->exec at
+ * runtime and run an arbitrary command. Backslash escapes are then resolved
+ * (see tclUnescape) so `[\exec ls]` is matched as `exec`.
  *
  * Comment and blank statements (extractVerb returns null) are skipped entirely,
  * including their brackets: a `#` comment is discarded at Tcl parse time and is
@@ -310,10 +318,9 @@ function* iterVerbs(command: string): Generator<string> {
     const verb = extractVerb(stmt);
     if (verb === null) continue;
     yield verb;
-    // Capture word chars and backslash escapes after `[` so a backslash-
-    // obfuscated substituted command (`[\exec ls]`) is caught, then resolve
-    // the escapes to the verb Tcl runs.
-    for (const match of stmt.matchAll(/\[\s*(?::+)?((?:\\.|\w)+)/g)) {
+    // `[` includes itself in the class so a nested `[[...]` substitution yields
+    // a `[`-led token; `$` is included so a `[$var]` indirection yields `$var`.
+    for (const match of stmt.matchAll(/\[\s*(?::+)?([^\s\]{};]+)/g)) {
       yield tclUnescape(match[1]!).replace(/^:+/, "");
     }
   }

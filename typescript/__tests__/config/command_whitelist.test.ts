@@ -266,6 +266,18 @@ describe("isQueryCommand", () => {
     expect(isQueryCommand("puts [\\exec ls]")).toEqual([false, "exec"]);
   });
 
+  it("blocks a variable-substituted command in a bracket ([$x] -> exec at runtime)", () => {
+    expect(isQueryCommand("set x exec; puts [$x ls]")).toEqual([false, "$x"]);
+  });
+
+  it("blocks a nested command substitution as the bracket command ([[...] ...])", () => {
+    expect(isQueryCommand("puts [[set x exec] ls]")).toEqual([false, "[set"]);
+  });
+
+  it("still allows a substituted argument that is a variable ([get_cells $x])", () => {
+    expect(isQueryCommand("puts [get_property [get_cells $x] area]")).toEqual([true, null]);
+  });
+
   it("mid-word quote is literal and cannot hide a trailing exec", () => {
     expect(isQueryCommand('set x a"b ; exec ls')).toEqual([false, "exec"]);
   });
