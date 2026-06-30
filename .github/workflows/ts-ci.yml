@@ -2,10 +2,10 @@ name: TypeScript CI
 
 on:
   push:
-    branches: [main, "feat/ts-migration**"]
+    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests"]
     paths: ["typescript/**"]
   pull_request:
-    branches: [main, "feat/ts-migration**"]
+    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests"]
     paths: ["typescript/**"]
 
 jobs:
@@ -25,3 +25,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
+      - run: npm run test:integration
+        env:
+          OPENROAD_ENABLE_COMMAND_VALIDATION: "false"
+      - run: npm run test:performance
