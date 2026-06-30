@@ -106,6 +106,18 @@ describe("PtyHandler", () => {
       await expect(handler.createSession(["echo"])).rejects.toThrow("Failed to create PTY session");
     });
 
+    it("includes PATH hint when spawn fails with posix_spawnp/ENOENT", async () => {
+      vi.mocked(spawn).mockImplementation(() => {
+        throw new Error("posix_spawnp failed");
+      });
+
+      await expect(handler.createSession(["openroad"])).rejects.toThrow(
+        "could not be started",
+      );
+      await expect(handler.createSession(["openroad"])).rejects.toThrow("PATH=");
+      await expect(handler.createSession(["openroad"])).rejects.toThrow("spawn-helper");
+    });
+
     it("registers onExit and marks process dead when it fires", async () => {
       await handler.createSession(["echo"]);
       expect(handler.isProcessAlive()).toBe(true);
