@@ -26,7 +26,9 @@ function makeMockPty(): MockPty {
   let capturedOnExit: ((e: { exitCode: number; signal?: number }) => void) | undefined;
 
   return {
-    pid: 12345,
+    // Use the test runner's own pid so isProcessAlive()'s `process.kill(pid, 0)`
+    // liveness probe sees a real, live process for an unterminated mock.
+    pid: process.pid,
     write: vi.fn(),
     kill: vi.fn(),
     resize: vi.fn(),
@@ -160,6 +162,24 @@ describe("PtyHandler", () => {
       await handler.createSession(["echo"]);
       mockPty._exit(0);
       expect(handler.isProcessAlive()).toBe(false);
+    });
+
+    it("returns false when the probe throws ESRCH (pid gone)", async () => {
+      await handler.createSession(["echo"]);
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
+        throw Object.assign(new Error("kill ESRCH"), { code: "ESRCH" });
+      });
+      expect(handler.isProcessAlive()).toBe(false);
+      killSpy.mockRestore();
+    });
+
+    it("returns true when the probe throws EPERM (pid exists, not signalable)", async () => {
+      await handler.createSession(["echo"]);
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
+        throw Object.assign(new Error("kill EPERM"), { code: "EPERM" });
+      });
+      expect(handler.isProcessAlive()).toBe(true);
+      killSpy.mockRestore();
     });
   });
 

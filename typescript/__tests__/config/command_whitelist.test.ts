@@ -62,10 +62,16 @@ describe("pattern sets", () => {
     expect(READONLY_PATTERNS).toContain("check_*");
   });
 
-  it("READONLY contains Tcl builtins", () => {
+  it("READONLY contains safe Tcl builtins", () => {
     expect(READONLY_PATTERNS).toContain("puts");
-    expect(READONLY_PATTERNS).toContain("foreach");
     expect(READONLY_PATTERNS).toContain("set");
+    expect(READONLY_PATTERNS).toContain("expr");
+  });
+
+  it("READONLY excludes body-eval builtins (if/for/foreach/while/proc/catch/namespace)", () => {
+    for (const verb of ["if", "for", "foreach", "while", "proc", "catch", "namespace", "uplevel"]) {
+      expect(READONLY_PATTERNS).not.toContain(verb);
+    }
   });
 
   it("EXEC_ONLY contains set_*/read_*/write_* globs", () => {
@@ -195,6 +201,86 @@ describe("isQueryCommand", () => {
   it("splits on semicolons and rejects the offending verb", () => {
     expect(isQueryCommand("report_wns; global_placement")).toEqual([false, "global_placement"]);
   });
+
+  it("body-eval: blocks catch wrapping exec (finding 1)", () => {
+    expect(isQueryCommand("catch { exec ls }")).toEqual([false, "catch"]);
+  });
+
+  it("body-eval: blocks if wrapping exec (finding 1)", () => {
+    expect(isQueryCommand("if 1 { exec ls }")).toEqual([false, "if"]);
+  });
+
+  it("body-eval: blocks foreach wrapping exec (finding 1)", () => {
+    expect(isQueryCommand("foreach x {a} { exec ls }")).toEqual([false, "foreach"]);
+  });
+
+  it("bracket: blocks set x [exec ls] via bracket scan (finding 2)", () => {
+    expect(isQueryCommand("set x [exec ls]")).toEqual([false, "exec"]);
+  });
+
+  it("bracket: blocks set x [::exec ls] with namespace-qualified command", () => {
+    expect(isQueryCommand("set x [::exec ls]")).toEqual([false, "exec"]);
+  });
+
+  it("bracket: blocks expr {[exec ls]} via bracket scan (finding 2)", () => {
+    expect(isQueryCommand("expr {[exec ls]}")).toEqual([false, "exec"]);
+  });
+
+  it("bracket: allows puts [report_wns] when bracket verb is read-only (finding 2)", () => {
+    expect(isQueryCommand("puts [report_wns]")).toEqual([true, null]);
+  });
+
+  it("bracket: blocks puts [global_placement] (exec-only in bracket)", () => {
+    expect(isQueryCommand("puts [global_placement]")).toEqual([false, "global_placement"]);
+  });
+
+  it("semicolon in quoted string is not a statement separator (finding 3)", () => {
+    expect(isQueryCommand('puts "hello; world"')).toEqual([true, null]);
+  });
+
+  it("semicolon inside braces is not a statement separator (finding 3)", () => {
+    expect(isQueryCommand("report_checks {a; b}")).toEqual([true, null]);
+  });
+
+  it("allows a bracket inside a comment line (never executed)", () => {
+    expect(isQueryCommand("# harmless [exec ls]")).toEqual([true, null]);
+  });
+
+  it("allows a comment with a bracket after a readonly statement", () => {
+    expect(isQueryCommand("report_wns\n# harmless [exec ls]")).toEqual([true, null]);
+  });
+
+  it("still blocks a bracket when # is a mid-statement arg, not a comment", () => {
+    expect(isQueryCommand("report_checks # [exec ls]")).toEqual([false, "exec"]);
+  });
+
+  it("unbalanced close brace cannot hide a trailing exec (depth clamp)", () => {
+    expect(isQueryCommand("report_wns }; exec ls")).toEqual([false, "exec"]);
+  });
+
+  it("blocks a backslash-escaped exec-only verb (\\glob -> glob)", () => {
+    expect(isQueryCommand("\\glob *")).toEqual([false, "glob"]);
+  });
+
+  it("blocks a backslash-escaped command in a bracket substitution", () => {
+    expect(isQueryCommand("puts [\\exec ls]")).toEqual([false, "exec"]);
+  });
+
+  it("blocks a variable-substituted command in a bracket ([$x] -> exec at runtime)", () => {
+    expect(isQueryCommand("set x exec; puts [$x ls]")).toEqual([false, "$x"]);
+  });
+
+  it("blocks a nested command substitution as the bracket command ([[...] ...])", () => {
+    expect(isQueryCommand("puts [[set x exec] ls]")).toEqual([false, "[set"]);
+  });
+
+  it("still allows a substituted argument that is a variable ([get_cells $x])", () => {
+    expect(isQueryCommand("puts [get_property [get_cells $x] area]")).toEqual([true, null]);
+  });
+
+  it("mid-word quote is literal and cannot hide a trailing exec", () => {
+    expect(isQueryCommand('set x a"b ; exec ls')).toEqual([false, "exec"]);
+  });
 });
 
 // isExecCommand
@@ -257,6 +343,21 @@ describe("isExecCommand", () => {
 
   it("blocks a multiline command with one blocked verb", () => {
     expect(isExecCommand("global_placement\nsocket tcp localhost")).toEqual([false, "socket"]);
+  });
+
+  it("unbalanced close brace cannot hide a trailing quit (depth clamp)", () => {
+    expect(isExecCommand("set x } ; quit")).toEqual([false, "quit"]);
+  });
+
+  it("blocks a backslash-escaped verb (\\socket -> socket)", () => {
+    expect(isExecCommand("\\socket localhost 1")).toEqual([false, "socket"]);
+    expect(isExecCommand("\\quit")).toEqual([false, "quit"]);
+    expect(isExecCommand("\\load /tmp/x")).toEqual([false, "load"]);
+  });
+
+  it("blocks a hex/octal-escaped verb (\\x73ocket / \\163ocket -> socket)", () => {
+    expect(isExecCommand("\\x73ocket localhost 1")).toEqual([false, "socket"]);
+    expect(isExecCommand("\\163ocket localhost 1")).toEqual([false, "socket"]);
   });
 });
 

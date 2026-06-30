@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { ValidationError } from "../exceptions.js";
 
 export function validatePathSegment(segment: string, segmentName: string): void {
-  if (!segment) throw new ValidationError(`${segmentName} cannot be empty`);
+  if (!segment || segment.trim() === "") throw new ValidationError(`${segmentName} cannot be empty`);
   if (segment === "." || segment === "..") throw new ValidationError(`${segmentName} cannot be '.' or '..'`);
   if (segment.includes("/") || segment.includes("\\")) throw new ValidationError(`${segmentName} cannot contain path separators`);
   if (segment.includes("\x00")) throw new ValidationError(`${segmentName} cannot contain null bytes`);
@@ -26,10 +26,10 @@ export function validateSafePathContainment(targetPath: string, basePath: string
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
       throw new ValidationError(`Failed to resolve ${context} path: ${e}`);
     }
-    // Walk up to find the longest existing prefix, resolve its symlinks, then
-    // re-append the non-existent suffix. A plain path.resolve() is unsafe here
-    // because it won't resolve symlinks in existing parent directories, allowing
-    // e.g. base/evil_link/nonexistent to escape containment at runtime.
+    // Walk up to the longest existing prefix, resolve its symlinks, then
+    // re-append the non-existent suffix. A plain path.resolve() would not
+    // resolve symlinks in existing parent directories, allowing e.g.
+    // base/evil_link/nonexistent to escape containment at runtime.
     const suffix: string[] = [];
     let current = path.resolve(targetPath);
     for (;;) {

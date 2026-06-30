@@ -39,64 +39,66 @@ export interface InteractiveExecResult {
   error?: string | null;
 }
 
-// Opaque snake_case payloads
-// These are passed straight through to the wire (no camel->snake conversion),
-// matching Python's dict output byte-for-byte.
+// Nested domain payloads (camelCase)
+// Authored in camelCase like every other domain model and converted to the
+// snake_case MCP wire format at the serialization boundary
+// (BaseTool.formatResult -> toSnakeCase). Nothing here is hand-written in
+// snake_case, so the wire convention is produced by a single rule.
 
 /** One entry in a session's command history. */
 export interface CommandHistoryEntry {
   command: string;
   timestamp: string;
-  command_number: number;
-  execution_start: number;
-  execution_time?: number;
-  output_length?: number;
+  commandNumber: number;
+  executionStart: number;
+  executionTime?: number;
+  outputLength?: number;
 }
 
 /** Detailed per-session metrics returned by InteractiveSession.getDetailedMetrics. */
 export interface SessionDetailedMetrics {
-  session_id: string;
+  sessionId: string;
   state: string;
-  is_alive: boolean;
-  created_at: string;
-  last_activity: string;
-  uptime_seconds: number;
-  idle_seconds: number;
+  isAlive: boolean;
+  createdAt: string;
+  lastActivity: string;
+  uptimeSeconds: number;
+  idleSeconds: number;
   commands: {
-    total_executed: number;
-    current_count: number;
-    history_length: number;
+    totalExecuted: number;
+    currentCount: number;
+    historyLength: number;
   };
   performance: {
-    total_cpu_time: number;
-    peak_memory_mb: number;
-    current_memory_mb: number;
+    totalCpuTime: number;
+    peakMemoryMb: number;
+    currentMemoryMb: number;
   };
   buffer: {
-    current_size: number;
-    max_size: number;
-    utilization_percent: number;
+    currentSize: number;
+    maxSize: number;
+    utilizationPercent: number;
   };
   timeout: {
-    configured_seconds: number | null;
-    is_timed_out: boolean;
+    configuredSeconds: number | null;
+    isTimedOut: boolean;
   };
 }
 
 /** Aggregate metrics across all sessions returned by OpenROADManager.sessionMetrics. */
 export interface ManagerMetrics {
   manager: {
-    total_sessions: number;
-    active_sessions: number;
-    terminated_sessions: number;
-    max_sessions: number;
-    utilization_percent: number;
+    totalSessions: number;
+    activeSessions: number;
+    terminatedSessions: number;
+    maxSessions: number;
+    utilizationPercent: number;
   };
   aggregate: {
-    total_commands: number;
-    total_cpu_time: number;
-    total_memory_mb: number;
-    avg_memory_per_session: number;
+    totalCommands: number;
+    totalCpuTime: number;
+    totalMemoryMb: number;
+    avgMemoryPerSession: number;
   };
   sessions: SessionDetailedMetrics[];
 }

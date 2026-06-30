@@ -76,17 +76,14 @@ export const EXEC_ONLY_PATTERNS: readonly string[] = [
 ];
 
 // Safe Tcl built-ins - usable in both tools.
+// Intentionally excludes body-eval builtins (if, for, foreach, while, proc,
+// catch, namespace, uplevel) because they accept a script body argument and
+// can therefore wrap any dangerous command: `catch { exec ls }` would pass the
+// verb check on `catch` alone. Those builtins belong in the exec tool.
 export const _TCL_BUILTINS: readonly string[] = [
   "puts",
   "set",
   "expr",
-  "if",
-  "else",
-  "elseif",
-  "for",
-  "foreach",
-  "while",
-  "proc",
   "return",
   "break",
   "continue",
@@ -105,9 +102,7 @@ export const _TCL_BUILTINS: readonly string[] = [
   "scan",
   "array",
   "dict",
-  "catch",
   "error",
-  "namespace",
   "upvar",
   "global",
   "variable",
@@ -152,33 +147,181 @@ function matchesAny(verb: string, matchers: readonly Minimatch[]): boolean {
 }
 
 /**
+ * Resolve Tcl backslash substitution within a single command word so an
+ * obfuscated verb matches the command Tcl will actually run. Tcl drops a
+ * backslash before an ordinary character (`\socket` -> `socket`) and decodes
+ * numeric escapes (`\x73`/`\163`/`s` -> `s`), so without this a blocked
+ * verb could be smuggled past the allowlist as its literal-backslash form. A
+ * real command name never contains a backslash, so this only normalises
+ * obfuscation and never alters a legitimate verb.
+ */
+function tclUnescape(token: string): string {
+  if (!token.includes("\\")) return token;
+  let out = "";
+  for (let i = 0; i < token.length; i++) {
+    if (token[i] !== "\\" || i + 1 >= token.length) {
+      out += token[i];
+      continue;
+    }
+    const c = token[i + 1]!;
+    const simple: Record<string, string> = {
+      a: "\x07", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v",
+    };
+    if (c in simple) {
+      out += simple[c];
+      i++;
+    } else if (c === "x") {
+      const m = /^[0-9a-fA-F]+/.exec(token.slice(i + 2));
+      if (m) {
+        out += String.fromCharCode(parseInt(m[0], 16) & 0xff);
+        i += 1 + m[0].length;
+      } else {
+        out += "x";
+        i++;
+      }
+    } else if (c === "u" || c === "U") {
+      const m = new RegExp(`^[0-9a-fA-F]{1,${c === "u" ? 4 : 8}}`).exec(token.slice(i + 2));
+      if (m) {
+        out += String.fromCodePoint(parseInt(m[0], 16));
+        i += 1 + m[0].length;
+      } else {
+        out += c;
+        i++;
+      }
+    } else if (c >= "0" && c <= "7") {
+      const m = /^[0-7]{1,3}/.exec(token.slice(i + 1))!;
+      out += String.fromCharCode(parseInt(m[0], 8) & 0xff);
+      i += m[0].length;
+    } else {
+      // Backslash before an ordinary char: drop the backslash, keep the char.
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/**
  * Return the command verb (first token) of a single Tcl statement.
  *
  * Returns null only for blank lines and comment lines. Lines that start with a
  * substitution or grouping character (`$`, `[`, `]`, `{`, `}`) are returned
- * as-is so the caller can reject them via the allowlist.
+ * as-is so the caller can reject them via the allowlist. Backslash escapes in
+ * the verb are resolved (see tclUnescape) so `\socket` is matched as `socket`.
  */
 export function extractVerb(statement: string): string | null {
   const stripped = statement.trim();
   if (stripped === "" || stripped.startsWith("#")) {
     return null;
   }
-  const firstToken = stripped.split(/\s+/)[0]!;
-  return firstToken.replace(/;+$/, "");
+  const firstToken = stripped.split(/\s+/)[0]!.replace(/;+$/, "");
+  return tclUnescape(firstToken);
 }
 
-/** Iterate the verbs of a command, mirroring Python's naive `;`->newline split. */
+// Unicode line-boundary characters that Python's str.splitlines() recognises.
+// Treating every one of these (not just \n) as a statement separator closes a
+// \r-based bypass where a second command is hidden after a carriage return.
+const STATEMENT_SEPARATORS: ReadonlySet<string> = new Set([
+  "\n",
+  "\r",
+  "\v",
+  "\f",
+  "\x1c",
+  "\x1d",
+  "\x1e",
+  "\x85",
+  " ",
+  " ",
+]);
+
+/**
+ * Split a Tcl command string into individual statements, respecting quoted
+ * strings and brace groups so that separators inside them are not treated as
+ * statement boundaries (e.g. `puts "hello; world"` is one statement). Statement
+ * separators are `;` plus every Unicode line boundary in STATEMENT_SEPARATORS,
+ * so a bare \r cannot hide a second command from the verb check.
+ */
+function splitTclStatements(command: string): string[] {
+  const stmts: string[] = [];
+  let depth = 0;
+  let inQuote = false;
+  let current = "";
+  // In Tcl a `"` only opens a quoted string at the start of a word; a quote in
+  // the middle of a word (e.g. `a"b`) is a literal. Track word boundaries so an
+  // unbalanced mid-word quote cannot flip us into quote mode and swallow the
+  // separator that follows it.
+  let atWordStart = true;
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (ch === "\\" && i + 1 < command.length) {
+      current += ch + command[i + 1]!;
+      i++;
+      atWordStart = false;
+    } else if (ch === '"' && depth === 0 && (inQuote || atWordStart)) {
+      inQuote = !inQuote;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && ch === "{") {
+      depth++;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && ch === "}") {
+      // Clamp at zero: an unbalanced close brace must not drive depth negative,
+      // which would make the `depth === 0` separator test below permanently
+      // false and hide every subsequent statement from the verb check.
+      if (depth > 0) depth--;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && depth === 0 && (ch === ";" || STATEMENT_SEPARATORS.has(ch))) {
+      stmts.push(current);
+      current = "";
+      atWordStart = true;
+    } else {
+      current += ch;
+      // Whitespace and `[` (which begins a command substitution) start a new
+      // word, so a `"` immediately after them is again quote-significant.
+      atWordStart = ch === " " || ch === "\t" || ch === "[";
+    }
+  }
+  if (current) stmts.push(current);
+  return stmts;
+}
+
+/**
+ * Iterate the verbs of a Tcl command string.
+ *
+ * Per statement, in a Tcl-aware split (separators inside quotes/braces are
+ * ignored; `;` plus all Unicode line boundaries are separators so a \r cannot
+ * hide a command), two kinds of verb are yielded:
+ * 1. The statement verb — its leading token.
+ * 2. Bracket verbs — the command word following each `[` (bracket
+ *    substitution). This catches `set x [exec ls]` where the outer verb `set`
+ *    is safe but the substituted command `exec` is not.
+ *
+ * The bracket word is captured up to the first delimiter, so a substituted
+ * command whose name is itself dynamic is surfaced rather than skipped: a
+ * variable name (`[$x ls]`) yields `$x` and a nested substitution
+ * (`[[set x exec] ls]`) yields `[set`. Neither is in any allowlist, so the
+ * read-only tool rejects them instead of letting Tcl resolve `$x`->exec at
+ * runtime and run an arbitrary command. Backslash escapes are then resolved
+ * (see tclUnescape) so `[\exec ls]` is matched as `exec`.
+ *
+ * Comment and blank statements (extractVerb returns null) are skipped entirely,
+ * including their brackets: a `#` comment is discarded at Tcl parse time and is
+ * never executed, so `# harmless [exec ls]` must not be rejected on the `exec`.
+ * Brackets inside brace-quoted arguments are still scanned, because commands
+ * like `expr`/`eval` re-evaluate brace contents, so they cannot be assumed inert.
+ */
 function* iterVerbs(command: string): Generator<string> {
-  // Replace ';' with newline, then split on all Unicode line boundaries that
-  // Python's str.splitlines() recognises. \r\n must precede \r so the pair is
-  // consumed as one separator. Semicolons inside Tcl braces or quoted strings
-  // are not handled - this matches the Python implementation's known limitation.
-  for (const rawLine of command
-    .replace(/;/g, "\n")
-    .split(/\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]/)) {
-    const verb = extractVerb(rawLine);
-    if (verb !== null) {
-      yield verb;
+  for (const stmt of splitTclStatements(command)) {
+    const verb = extractVerb(stmt);
+    if (verb === null) continue;
+    yield verb;
+    // `[` includes itself in the class so a nested `[[...]` substitution yields
+    // a `[`-led token; `$` is included so a `[$var]` indirection yields `$var`.
+    for (const match of stmt.matchAll(/\[\s*(?::+)?([^\s\]{};]+)/g)) {
+      yield tclUnescape(match[1]!).replace(/^:+/, "");
     }
   }
 }

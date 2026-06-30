@@ -27,13 +27,9 @@ export interface CreateSessionOptions {
 /**
  * Manages OpenROAD subprocess lifecycle and interactive sessions.
  *
- * Node.js is single-threaded, so no reentrant lock is needed for plain state
- * access (Python used asyncio.Lock + the GIL). The async-mutex `cleanupLock`
- * serialises the multi-await cleanup/creation sections so concurrent callers
- * cannot interleave session-map mutations across await points.
- *
- * The module exports a shared `manager` singleton; the class is exported too so
- * tests can construct isolated instances.
+ * The async-mutex `cleanupLock` serialises the multi-await cleanup/creation
+ * sections so concurrent callers cannot interleave session-map mutations
+ * across await points.
  */
 export class OpenROADManager {
   private readonly logger = getLogger("manager");
@@ -73,8 +69,8 @@ export class OpenROADManager {
       this.sessions.set(sessionId, null);
 
       try {
-        // Match Python's `buffer_size or default`: 0 (and undefined) fall back
-        // to the default so a zero-capacity buffer can't silently drop all output.
+        // 0 (and undefined) fall back to the default so a zero-capacity buffer
+        // can't silently drop all output.
         const bufferSize = opts.bufferSize && opts.bufferSize > 0 ? opts.bufferSize : this.defaultBufferSize;
         const session = new InteractiveSession(sessionId, bufferSize);
         await session.start(opts.command, opts.env, opts.cwd);
@@ -92,8 +88,8 @@ export class OpenROADManager {
 
   async executeCommand(sessionId: string, command: string, timeoutMs?: number): Promise<InteractiveExecResult> {
     const session = this._getSession(sessionId);
-    // Match Python's `timeout_ms or default`: 0 (and undefined) fall back to the
-    // configured default rather than becoming an instant timeout.
+    // 0 (and undefined) fall back to the default rather than becoming an
+    // instant timeout.
     const actualTimeout = timeoutMs && timeoutMs > 0 ? timeoutMs : this.defaultTimeoutMs;
 
     await session.sendCommand(command);
@@ -121,8 +117,10 @@ export class OpenROADManager {
   async terminateSession(sessionId: string, force = false): Promise<void> {
     const session = this._getSession(sessionId);
 
+    // Do not call cleanup() here: cleanup() clears the output buffer, which
+    // would discard final output a concurrent reader may still need. The
+    // session is dropped from the map below, so its buffer is GC'd anyway.
     await session.terminate(force);
-    await session.cleanup();
     this.logger.info(`Terminated session ${sessionId}`);
 
     await this.cleanupLock.runExclusive(() => {
@@ -131,7 +129,10 @@ export class OpenROADManager {
   }
 
   async terminateAllSessions(force = false): Promise<number> {
-    const sessionIds = [...this.sessions.keys()];
+    // Skip null placeholders: they belong to an in-flight createSession
+    // (which resolves or removes them itself), so terminating them would
+    // throw "still being created" and be lost.
+    const sessionIds = this._initializedSessions().map(([sid]) => sid);
     if (sessionIds.length === 0) return 0;
 
     const results = await Promise.allSettled(
@@ -166,10 +167,6 @@ export class OpenROADManager {
   async sessionMetrics(): Promise<ManagerMetrics> {
     await this._cleanupTerminatedSessionsWithLock();
 
-    const totalSessions = this.sessions.size;
-    const activeSessions = this.getActiveSessionCount();
-    const terminatedSessions = totalSessions - activeSessions;
-
     const sessionDetails: SessionDetailedMetrics[] = [];
     let totalCommands = 0;
     let totalCpuTime = 0;
@@ -179,27 +176,33 @@ export class OpenROADManager {
       try {
         const metrics = await session.getDetailedMetrics();
         sessionDetails.push(metrics);
-        totalCommands += metrics.commands.total_executed;
-        totalCpuTime += metrics.performance.total_cpu_time;
-        totalMemoryMb += metrics.performance.current_memory_mb;
+        totalCommands += metrics.commands.totalExecuted;
+        totalCpuTime += metrics.performance.totalCpuTime;
+        totalMemoryMb += metrics.performance.currentMemoryMb;
       } catch (e) {
         this.logger.warn(`Failed to get metrics for session ${session.sessionId}: ${String(e)}`);
       }
     }
 
+    // Snapshot counts after the async loop so the result reflects the
+    // post-cleanup state.
+    const totalSessions = this.sessions.size;
+    const activeSessions = this.getActiveSessionCount();
+    const terminatedSessions = totalSessions - activeSessions;
+
     return {
       manager: {
-        total_sessions: totalSessions,
-        active_sessions: activeSessions,
-        terminated_sessions: terminatedSessions,
-        max_sessions: this.maxSessions,
-        utilization_percent: this.maxSessions > 0 ? (activeSessions / this.maxSessions) * 100 : 0,
+        totalSessions,
+        activeSessions,
+        terminatedSessions,
+        maxSessions: this.maxSessions,
+        utilizationPercent: this.maxSessions > 0 ? (activeSessions / this.maxSessions) * 100 : 0,
       },
       aggregate: {
-        total_commands: totalCommands,
-        total_cpu_time: totalCpuTime,
-        total_memory_mb: totalMemoryMb,
-        avg_memory_per_session: activeSessions > 0 ? totalMemoryMb / activeSessions : 0,
+        totalCommands,
+        totalCpuTime,
+        totalMemoryMb,
+        avgMemoryPerSession: activeSessions > 0 ? totalMemoryMb / activeSessions : 0,
       },
       sessions: sessionDetails,
     };
@@ -223,20 +226,7 @@ export class OpenROADManager {
 
   async cleanupAll(): Promise<void> {
     this.logger.info("Starting OpenROAD cleanup");
-
     await this.terminateAllSessions(true);
-
-    await this.cleanupLock.runExclusive(async () => {
-      for (const [, session] of this._initializedSessions()) {
-        try {
-          await session.cleanup();
-        } catch (e) {
-          this.logger.warn(`Error during session cleanup: ${String(e)}`);
-        }
-      }
-      this.sessions.clear();
-    });
-
     this.logger.info("OpenROAD cleanup completed");
   }
 
@@ -248,12 +238,10 @@ export class OpenROADManager {
     return this._countActive();
   }
 
-  // internals
-
   private _countActive(): number {
     let count = 0;
     for (const session of this.sessions.values()) {
-      if (session !== null && session.isAlive()) count++;
+      if (session !== null && session.checkAlive()) count++;
     }
     return count;
   }
@@ -286,8 +274,12 @@ export class OpenROADManager {
     const terminated: Array<[string, InteractiveSession, boolean]> = [];
 
     for (const [sessionId, session] of this._initializedSessions()) {
-      if (!session.isAlive()) {
-        const timeSinceDeath = (now - session.lastActivity.getTime()) / 1000;
+      if (!session.checkAlive()) {
+        // Measure from death time, not lastActivity: a long-idle session
+        // dies far after its last command, which would trip force-cleanup
+        // immediately.
+        const deathTime = (session.terminatedAt ?? session.lastActivity).getTime();
+        const timeSinceDeath = (now - deathTime) / 1000;
         terminated.push([sessionId, session, timeSinceDeath > FORCE_CLEANUP_AFTER_SECONDS]);
       }
     }
@@ -306,9 +298,12 @@ export class OpenROADManager {
             cleaned++;
           }
         } else {
-          await session.cleanup();
-          this.sessions.delete(sessionId);
-          cleaned++;
+          try {
+            await session.cleanup();
+          } finally {
+            this.sessions.delete(sessionId);
+            cleaned++;
+          }
         }
       } catch (e) {
         this.logger.error(`Error during session ${sessionId} cleanup: ${String(e)}`);
@@ -326,5 +321,4 @@ export class OpenROADManager {
   }
 }
 
-/** Shared process-wide manager instance used by the MCP tools. */
 export const manager = new OpenROADManager();
