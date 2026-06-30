@@ -8,10 +8,5 @@ export default defineConfig({
     include: ["__tests__/performance/**/*.test.ts"],
     testTimeout: 60000,
     hookTimeout: 15000,
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
   },
 });
