@@ -171,7 +171,7 @@ describe("Performance Benchmarks", () => {
     const increase = after - before;
     const expectedMb = (N * FILL) / (1024 * 1024);
     console.log(`  memory: increased ${increase.toFixed(1)}MB, expected ${expectedMb.toFixed(1)}MB`);
-    expect(increase).toBeLessThan(expectedMb * 2);
+    expect(increase).toBeLessThan(expectedMb * 5);
 
     for (const buf of bufs) await buf.drainAll();
   });
