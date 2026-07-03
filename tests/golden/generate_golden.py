@@ -23,6 +23,7 @@ changes on purpose.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -235,12 +236,69 @@ def _cases() -> dict[str, object]:
     }
 
 
+def _canonical_type(prop: dict) -> str | None:
+    """Reduce a JSON-schema property to its base type name.
+
+    Optional params render differently across implementations — Pydantic emits
+    `anyOf: [{type}, {type: null}]`, zod emits a bare `{type}` — so we collapse
+    both to the single non-null base type. Extra keys (min/max/items/default)
+    are incidental and dropped.
+    """
+    if "type" in prop:
+        return prop["type"]
+    if "anyOf" in prop:
+        for branch in prop["anyOf"]:
+            if branch.get("type") != "null":
+                return branch.get("type")
+    return None
+
+
+def _canonical_tool(input_schema: dict, annotations: object) -> dict:
+    props = input_schema.get("properties", {})
+    required = set(input_schema.get("required", []))
+    params = {
+        name: {"type": _canonical_type(prop), "required": name in required}
+        for name, prop in props.items()
+    }
+    hints = None
+    if annotations is not None:
+        hints = {
+            "readOnlyHint": annotations.readOnlyHint,
+            "destructiveHint": annotations.destructiveHint,
+            "idempotentHint": annotations.idempotentHint,
+            "openWorldHint": annotations.openWorldHint,
+        }
+    return {"params": params, "annotations": hints}
+
+
+async def _tool_manifest() -> dict:
+    """Canonical name -> {params, annotations} manifest for all 10 tools.
+
+    The TypeScript suite normalizes its own MCP tools/list output the same way
+    and asserts an exact match, so a renamed param, a flipped required flag, or
+    a changed annotation hint fails CI.
+    """
+    from openroad_mcp.server import mcp
+
+    tools = await mcp.list_tools()
+    manifest = {}
+    for tool in tools:
+        mcp_tool = tool.to_mcp_tool()
+        manifest[mcp_tool.name] = _canonical_tool(mcp_tool.inputSchema, mcp_tool.annotations)
+    return dict(sorted(manifest.items()))
+
+
 def main() -> None:
     for name, model in _cases().items():
         wire = model.model_dump() if hasattr(model, "model_dump") else model
         path = GOLDEN_DIR / f"{name}.json"
         path.write_text(json.dumps(wire, indent=2) + "\n")
         print(f"wrote {path.relative_to(GOLDEN_DIR.parent.parent)}")
+
+    manifest = asyncio.run(_tool_manifest())
+    manifest_path = GOLDEN_DIR / "tool_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"wrote {manifest_path.relative_to(GOLDEN_DIR.parent.parent)}")
 
 
 if __name__ == "__main__":
