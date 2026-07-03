@@ -1,0 +1,17 @@
+{
+  "error": null,
+  "session_id": "sess-0001",
+  "history": [
+    {
+      "command": "place_design",
+      "timestamp": "2026-01-01T00:00:00",
+      "command_number": 1,
+      "execution_start": 1767225600.0,
+      "execution_time": 0.75,
+      "output_length": 42
+    }
+  ],
+  "total_commands": 1,
+  "limit": 10,
+  "search": "place"
+}
