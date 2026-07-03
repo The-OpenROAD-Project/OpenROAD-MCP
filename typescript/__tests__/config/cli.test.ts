@@ -57,4 +57,16 @@ describe("parseCliArgs", () => {
     vi.spyOn(process.stderr, "write").mockReturnValue(true);
     expect(() => parseCliArgs(["-t", "http", "--port", "abc"])).toThrow(ValidationError);
   });
+
+  it("rejects out-of-range and malformed ports", () => {
+    vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    for (const bad of ["-1", "0", "65536", "99999", "80abc", "1.5"]) {
+      expect(() => parseCliArgs(["-t", "http", "--port", bad])).toThrow(ValidationError);
+    }
+  });
+
+  it("accepts boundary ports 1 and 65535", () => {
+    expect(parseCliArgs(["-t", "http", "--port", "1"]).transport.port).toBe(1);
+    expect(parseCliArgs(["-t", "http", "--port", "65535"]).transport.port).toBe(65535);
+  });
 });

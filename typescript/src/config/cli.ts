@@ -15,11 +15,18 @@ export interface CLIConfig {
 
 const DEFAULT_HOST = "localhost";
 const DEFAULT_PORT = 8000;
+const MIN_PORT = 1;
+const MAX_PORT = 65535;
 
 function parsePort(value: string): number {
-  const port = Number.parseInt(value, 10);
-  if (Number.isNaN(port)) {
-    throw new ValidationError(`Invalid --port value: ${value}`);
+  const trimmed = value.trim();
+  const port = Number.parseInt(trimmed, 10);
+  // Reject non-digits ("-1", "80abc", "1.5") and out-of-range values up front so
+  // a bad port fails here with a clear message instead of later at listen().
+  if (!/^\d+$/.test(trimmed) || port < MIN_PORT || port > MAX_PORT) {
+    throw new ValidationError(
+      `Invalid --port value: '${value}'. Expected an integer between ${MIN_PORT} and ${MAX_PORT}.`,
+    );
   }
   return port;
 }
