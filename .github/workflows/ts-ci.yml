@@ -2,11 +2,11 @@ name: TypeScript CI
 
 on:
   push:
-    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests"]
-    paths: ["typescript/**"]
+    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests", "feat/ts-standalone-publish"]
+    paths: ["typescript/**", "tests/golden/**", "Dockerfile.ts"]
   pull_request:
-    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests"]
-    paths: ["typescript/**"]
+    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests", "feat/ts-standalone-publish"]
+    paths: ["typescript/**", "tests/golden/**", "Dockerfile.ts"]
 
 jobs:
   ts-check:
@@ -27,3 +27,12 @@ jobs:
       - run: npm run test
       - run: npm run test:integration
       - run: npm run test:performance
+
+  ts-docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # Builds the runtime target, which also runs the in-image entrypoint /
+      # openroad-binary / ORFS-path verification baked into Dockerfile.ts.
+      - name: Build TypeScript runtime image
+        run: docker build -f Dockerfile.ts --target runtime -t openroad-mcp-ts:ci .
