@@ -329,10 +329,28 @@ export async function runServer(config: CLIConfig): Promise<void> {
         void handleHttpRequest(req, res);
       });
 
-      httpServer.listen(config.transport.port, config.transport.host);
-      logger.info(
-        `MCP server running on http transport at ${config.transport.host}:${config.transport.port}`,
-      );
+      const { host, port } = config.transport;
+      // Bind can fail (port in use, permission denied); surface it as a clean
+      // rejection instead of an uncaught 'error' event that crashes the process.
+      await new Promise<void>((resolve, reject) => {
+        const onListenError = (e: Error): void => {
+          reject(new Error(`Failed to start HTTP server on ${host}:${port}: ${e.message}`));
+        };
+        httpServer.once("error", onListenError);
+        httpServer.listen(port, host, (): void => {
+          httpServer.removeListener("error", onListenError);
+          resolve();
+        });
+      });
+
+      // After a successful bind, keep runtime errors from crashing the process:
+      // log and trigger graceful shutdown instead.
+      httpServer.on("error", (e: Error): void => {
+        logger.error(`HTTP server error: ${e.message}`);
+        cleanupManager.triggerShutdown();
+      });
+
+      logger.info(`MCP server running on http transport at ${host}:${port}`);
       await cleanupManager.waitForShutdown();
       await new Promise<void>((resolve) => httpServer.close(() => { resolve(); }));
     }
