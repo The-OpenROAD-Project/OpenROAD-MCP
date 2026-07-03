@@ -142,7 +142,7 @@ jobs:
 
   publish-mcp-registry:
     name: Publish to MCP Registry
-    needs: [publish-pypi, publish-docker]
+    needs: [publish-pypi, publish-npm, publish-docker]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
