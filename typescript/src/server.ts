@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -23,9 +24,15 @@ import { ListReportImagesTool, ReadReportImageTool } from "./tools/report_images
 
 const logger = getLogger("server");
 
-// Keep in sync with package.json / pyproject.toml. The release workflow rewrites
-// all version strings from the git tag, so this tracks the shared release train.
-const VERSION = "0.5.5";
+// Read from package.json (the single source of truth, rewritten by `npm version`
+// at release time) so the advertised MCP server version never drifts. Both the
+// published npm package and the Docker image ship package.json next to dist/, so
+// ../package.json resolves relative to this compiled module.
+const VERSION = (
+  JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+    version: string;
+  }
+).version;
 
 function text(value: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text" as const, text: value }] };
