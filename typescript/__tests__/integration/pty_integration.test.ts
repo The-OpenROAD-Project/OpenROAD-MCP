@@ -103,7 +103,10 @@ describe("PTY Integration", () => {
     try {
       await handler.createSession(["/nonexistent/command_xyz"]);
       // If createSession resolved, the process should have exited with an error code.
+      // waitForExit also returns null on timeout, which must not be confused with a
+      // real (but merely non-zero) exit code.
       const code = await handler.waitForExit(2000);
+      expect(code).not.toBeNull();
       expect(code).not.toBe(0);
     } catch (e) {
       expect(e).toBeInstanceOf(PTYError);

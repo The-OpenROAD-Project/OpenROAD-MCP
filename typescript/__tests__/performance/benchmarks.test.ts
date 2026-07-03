@@ -257,22 +257,27 @@ describe("Stress Tests", () => {
     expect(session.checkAlive()).toBe(true);
   });
 
-  it("resource exhaustion: ≥ 20 sessions succeed, cleanupAll < 10s", async () => {
-    const MAX = 100;
+  it("resource exhaustion: session limit is enforced once maxSessions is reached, cleanupAll < 10s", async () => {
+    const LIMIT = 20;
+    const exhaustedManager = new OpenROADManager(LIMIT);
+    const MAX = 100; // attempts well past LIMIT so the cap is actually exercised
     let succeeded = 0;
 
     for (let i = 0; i < MAX; i++) {
       try {
-        await manager.createSession({ sessionId: `res-${i}` });
+        await exhaustedManager.createSession({ sessionId: `res-${i}` });
         succeeded++;
       } catch {
         break;
       }
     }
-    expect(succeeded).toBeGreaterThanOrEqual(20);
+    expect(succeeded).toBe(LIMIT);
+    await expect(
+      exhaustedManager.createSession({ sessionId: "res-overflow" }),
+    ).rejects.toThrow(/maximum session limit reached/i);
 
     const t0 = performance.now();
-    await manager.cleanupAll();
+    await exhaustedManager.cleanupAll();
     const cleanupMs = performance.now() - t0;
     console.log(`  cleanup of ${succeeded} sessions: ${cleanupMs.toFixed(0)}ms`);
     expect(cleanupMs).toBeLessThan(10000);

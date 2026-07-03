@@ -100,7 +100,7 @@ describe("Memory Monitoring", () => {
     manager = new OpenROADManager(100);
   });
 
-  it("session creation memory leak: 10 cycles × 5 sessions, RSS growth < 5MB", async () => {
+  it("session creation memory leak: 10 cycles × 5 sessions, RSS growth < 12MB", async () => {
     const mon = new MemoryMonitor();
     mon.takeSnapshot("start");
 
@@ -122,7 +122,7 @@ describe("Memory Monitoring", () => {
     expect(rssDiff).toBeLessThan(12);
   });
 
-  it("long running session memory: 1000 ops, growth < 25MB, leaked ≤ 2MB after cleanup", async () => {
+  it("long running session memory: 1000 ops, growth < 25MB, leaked ≤ 5MB after cleanup", async () => {
     const mon = new MemoryMonitor();
     mon.takeSnapshot("start");
 

@@ -26,6 +26,4 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run test:integration
-        env:
-          OPENROAD_ENABLE_COMMAND_VALIDATION: "false"
       - run: npm run test:performance

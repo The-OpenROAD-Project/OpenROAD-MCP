@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toSnakeCase } from "../../src/tools/base.js";
 import type { InteractiveExecResult } from "../../src/core/models.js";
-import { InteractiveSessionListResult } from "../../src/core/models.js";
+import { InteractiveSessionListResult, SessionState } from "../../src/core/models.js";
 import { ListSessionsTool } from "../../src/tools/interactive.js";
 import { OpenROADManager } from "../../src/core/manager.js";
 import { InteractiveSession } from "../../src/interactive/session.js";
@@ -122,9 +122,17 @@ describe("Live Tool Compactness", () => {
       return {
         sessionId,
         lastActivity: new Date(),
-        checkAlive: vi.fn().mockReturnValue(false),
+        checkAlive: vi.fn().mockReturnValue(true),
         start: vi.fn().mockResolvedValue(undefined),
-        getInfo: vi.fn().mockResolvedValue(null),
+        getInfo: vi.fn().mockResolvedValue({
+          sessionId,
+          createdAt: new Date().toISOString(),
+          isAlive: true,
+          commandCount: 0,
+          bufferSize: 0,
+          uptimeSeconds: 1,
+          state: SessionState.ACTIVE,
+        }),
         terminate: vi.fn().mockResolvedValue(undefined),
         cleanup: vi.fn().mockResolvedValue(undefined),
         isIdleTimeout: vi.fn().mockReturnValue(false),
@@ -133,14 +141,16 @@ describe("Live Tool Compactness", () => {
     manager = new OpenROADManager(10);
   });
 
-  it("ListSessionsTool output is compact JSON", async () => {
+  it("ListSessionsTool output is compact JSON for a populated session list", async () => {
+    await manager.createSession({ sessionId: "live-1" });
     const tool = new ListSessionsTool(manager);
     const raw = await tool.execute();
 
     expect(raw).not.toContain("\n");
     expect(raw).not.toContain("  ");
-    const parsed = JSON.parse(raw) as { sessions: unknown[] };
-    expect(Array.isArray(parsed.sessions)).toBe(true);
-    console.log(`  list sessions (empty): ${raw.length} chars = ~${tokenEstimate(raw)} tokens`);
+    const parsed = JSON.parse(raw) as { sessions: unknown[]; total_count: number; active_count: number };
+    expect(parsed.sessions).toHaveLength(1);
+    expect(parsed.active_count).toBe(1);
+    console.log(`  list sessions (1 active): ${raw.length} chars = ~${tokenEstimate(raw)} tokens`);
   });
 });
