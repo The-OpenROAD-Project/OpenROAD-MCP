@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 
+import { goldenDir } from "./golden_dir.js";
 import { toSnakeCase } from "../../src/tools/base.js";
 import {
   InteractiveSessionListResult,
@@ -38,10 +38,7 @@ import {
 // contract — field names after snake_case conversion, null-vs-missing keys,
 // enums-as-strings, defaults, and nesting — is exactly what deep-equal checks.
 
-const GOLDEN_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../tests/golden",
-);
+const GOLDEN_DIR = goldenDir();
 
 function golden(name: string): unknown {
   return JSON.parse(readFileSync(path.join(GOLDEN_DIR, `${name}.json`), "utf8"));

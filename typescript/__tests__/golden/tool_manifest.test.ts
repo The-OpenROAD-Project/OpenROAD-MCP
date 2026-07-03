@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { goldenDir } from "./golden_dir.js";
 import { createMcpServer } from "../../src/server.js";
 import type { OpenROADManager } from "../../src/core/manager.js";
 
@@ -23,10 +23,7 @@ vi.mock("node-pty", () => ({ spawn: vi.fn() }));
 // and zod (Pydantic's `anyOf: [{type}, {type: null}]` for optionals vs zod's
 // bare `{type}`, plus zod's min/max/$schema noise) down to the base type name.
 
-const GOLDEN = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../tests/golden/tool_manifest.json",
-);
+const GOLDEN = path.join(goldenDir(), "tool_manifest.json");
 
 type JsonSchema = {
   properties?: Record<string, { type?: string; anyOf?: { type?: string }[] }>;

@@ -66,10 +66,11 @@ ENV PATH="/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scrip
     ORFS_FLOW_PATH=/OpenROAD-flow-scripts/flow
 
 # Verify the entrypoint boots, the openroad binary is reachable, and the ORFS
-# flow path exists.
-RUN node /app/dist/main.js --help > /dev/null \
-    && command -v openroad > /dev/null \
-    && test -d "${ORFS_FLOW_PATH}" || (echo "ERROR: ORFS_FLOW_PATH=${ORFS_FLOW_PATH} not found" && exit 1)
+# flow path exists. Each check reports its own cause so a failure isn't
+# misattributed (A && B && C || D would blame D for any of the three).
+RUN node /app/dist/main.js --help > /dev/null || (echo "ERROR: entrypoint 'node dist/main.js --help' failed" && exit 1)
+RUN command -v openroad > /dev/null || (echo "ERROR: openroad binary not found on PATH" && exit 1)
+RUN test -d "${ORFS_FLOW_PATH}" || (echo "ERROR: ORFS_FLOW_PATH=${ORFS_FLOW_PATH} not found" && exit 1)
 
 ENTRYPOINT ["node", "/app/dist/main.js"]
 
@@ -78,6 +79,10 @@ ENTRYPOINT ["node", "/app/dist/main.js"]
 FROM builder AS test
 COPY typescript/vitest.config.ts typescript/vitest.config.integration.ts typescript/vitest.config.performance.ts typescript/eslint.config.ts ./
 COPY typescript/__tests__ ./__tests__
+# Cross-implementation golden fixtures live at <repo>/tests/golden (sibling of
+# typescript/); the golden tests locate them by walking up, so /app/tests/golden
+# is found from /app/__tests__/golden.
+COPY tests/golden ./tests/golden
 ENV PATH="/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scripts/tools/install/yosys/bin:$PATH" \
     ORFS_FLOW_PATH=/OpenROAD-flow-scripts/flow
 CMD ["npm", "run", "test:all"]
