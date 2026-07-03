@@ -1,13 +1,3 @@
-/**
- * Memory monitoring tests: RSS leak detection, FD tracking.
- * Port of tests/performance/test_memory_monitoring.py.
- *
- * Uses process.memoryUsage() instead of psutil. FD counting is Linux-only
- * (/proc/self/fd); tests skip gracefully on macOS.
- *
- * Run: npm run test:performance
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as fs from "node:fs";
 import { OpenROADManager } from "../../src/core/manager.js";
@@ -100,7 +90,7 @@ describe("Memory Monitoring", () => {
     manager = new OpenROADManager(100);
   });
 
-  it("session creation memory leak: 10 cycles × 5 sessions, RSS growth < 12MB", async () => {
+  it("session creation memory leak: 10 cycles x 5 sessions, RSS growth < 12MB", async () => {
     const mon = new MemoryMonitor();
     mon.takeSnapshot("start");
 
@@ -122,7 +112,7 @@ describe("Memory Monitoring", () => {
     expect(rssDiff).toBeLessThan(12);
   });
 
-  it("long running session memory: 1000 ops, growth < 25MB, leaked ≤ 5MB after cleanup", async () => {
+  it("long running session memory: 1000 ops, growth < 25MB, leaked <= 5MB after cleanup", async () => {
     const mon = new MemoryMonitor();
     mon.takeSnapshot("start");
 
@@ -138,7 +128,7 @@ describe("Memory Monitoring", () => {
 
     await manager.terminateSession(id);
     mon.takeSnapshot("after");
-    // Use heap (not RSS) for the leak check — heap tracks actual JS allocations
+    // Use heap (not RSS) for the leak check - heap tracks actual JS allocations
     const leaked = mon.heap("start", "after");
     console.log(`  long running: during +${duringDiff.toFixed(1)}MB, heap leaked ${leaked.toFixed(1)}MB`);
     expect(leaked).toBeLessThanOrEqual(5);
@@ -152,14 +142,13 @@ describe("Memory Monitoring", () => {
     const ids = await Promise.all(
       Array.from({ length: N }, (_, i) => manager.createSession({ sessionId: `conc-${i}` })),
     );
-    // Simulate some activity on each session
     await Promise.all(ids.map((id) => manager.executeCommand(id, "version")));
 
     mon.takeSnapshot("loaded");
     const totalDiff = mon.rss("before", "loaded");
     const perSession = totalDiff / N;
     console.log(`  concurrent sessions: total +${totalDiff.toFixed(1)}MB = ${perSession.toFixed(2)}MB/session`);
-    // Allow generous headroom — RSS reporting is coarse at process level
+    // Allow generous headroom - RSS reporting is coarse at process level
     expect(perSession).toBeLessThan(2);
 
     await manager.cleanupAll();

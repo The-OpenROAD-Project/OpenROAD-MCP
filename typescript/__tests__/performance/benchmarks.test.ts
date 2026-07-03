@@ -1,13 +1,3 @@
-/**
- * Performance benchmarks: session latency, throughput, concurrency, buffer overflow.
- * Port of tests/performance/test_benchmarks.py.
- *
- * All session-manager tests mock InteractiveSession — no real PTY needed.
- * CircularBuffer tests use the real implementation (pure in-process).
- *
- * Run: npm run test:performance
- */
-
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { Mock } from "vitest";
 import { OpenROADManager } from "../../src/core/manager.js";
@@ -159,12 +149,13 @@ describe("Performance Benchmarks", () => {
     expect(p99).toBeLessThan(200);
   });
 
-  it("memory usage profiling: heap increase < 2x expected for 10 sessions × 1MB", async () => {
+  it("memory usage profiling: heap increase < 5x expected for 10 sessions x 1MB", async () => {
     const N = 10;
     const BUF_SIZE = 1024 * 1024;
     const FILL = BUF_SIZE * 0.1;
     const CHUNK = "m".repeat(1024);
 
+    if (typeof global.gc === "function") global.gc();
     const before = process.memoryUsage().heapUsed / (1024 * 1024);
 
     const bufs: CircularBuffer[] = [];
@@ -175,6 +166,7 @@ describe("Performance Benchmarks", () => {
       bufs.push(buf);
     }
 
+    if (typeof global.gc === "function") global.gc();
     const after = process.memoryUsage().heapUsed / (1024 * 1024);
     const increase = after - before;
     const expectedMb = (N * FILL) / (1024 * 1024);
@@ -184,10 +176,10 @@ describe("Performance Benchmarks", () => {
     for (const buf of bufs) await buf.drainAll();
   });
 
-  it("buffer overflow performance: > 1000 ops/sec, final size ≤ capacity", async () => {
+  it("buffer overflow performance: > 1000 ops/sec, final size <= capacity", async () => {
     const BUF_SIZE = 1024 * 1024;
     const CHUNK = "o".repeat(1024);
-    const WRITES = 2048; // 2× overflow
+    const WRITES = 2048;
 
     const buf = new CircularBuffer(BUF_SIZE);
     const t0 = performance.now();
@@ -283,10 +275,10 @@ describe("Stress Tests", () => {
     expect(cleanupMs).toBeLessThan(10000);
   });
 
-  it("large output through 128KB buffer: final size ≤ capacity, duration < 2s", async () => {
+  it("large output through 128KB buffer: final size <= capacity, duration < 2s", async () => {
     const BUF_SIZE = 128 * 1024;
     const CHUNK_SIZE = 16 * 1024;
-    const WRITES = 320; // 5MB total
+    const WRITES = 320;
     const CHUNK = "L".repeat(CHUNK_SIZE);
 
     const buf = new CircularBuffer(BUF_SIZE);

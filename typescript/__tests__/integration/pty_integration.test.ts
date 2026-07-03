@@ -1,14 +1,3 @@
-/**
- * PTY integration tests using real subprocesses (bash, cat, echo, sleep).
- * Port of tests/integration/test_pty_integration.py.
- *
- * These tests do NOT mock node-pty — they validate that PtyHandler correctly
- * drives real processes, which is the key behavioral parity check between the
- * TypeScript node-pty implementation and the Python pty implementation.
- *
- * Run: npm run test:integration
- */
-
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as os from "node:os";
 import * as fs from "node:fs";
@@ -19,13 +8,11 @@ import { Settings } from "../../src/config/settings.js";
 
 const SETTINGS = new Settings({ ENABLE_COMMAND_VALIDATION: false });
 
-/** Collect all output from the handler's onData callback. */
 function makeCollector(): { chunks: string[]; output: () => string } {
   const chunks: string[] = [];
   return { chunks, output: () => chunks.join("") };
 }
 
-/** Poll `check()` every `intervalMs` until it returns true or `deadlineMs` expires. */
 async function waitUntil(check: () => boolean, deadlineMs: number, intervalMs = 50): Promise<boolean> {
   const deadline = Date.now() + deadlineMs;
   while (Date.now() < deadline) {
@@ -91,20 +78,16 @@ describe("PTY Integration", () => {
     await handler.terminateProcess(false);
     expect(handler.isProcessAlive()).toBe(false);
 
-    // cleanup is idempotent
     await expect(handler.cleanup()).resolves.not.toThrow();
     await expect(handler.cleanup()).resolves.not.toThrow();
   });
 
   it("error handling: invalid command throws PTYError or exits non-zero", async () => {
-    // node-pty behaviour is platform-specific: on Linux spawn() throws synchronously
+    // node-pty behavior is platform-specific: on Linux spawn() throws synchronously
     // for a missing executable; on macOS the process entry is created and onExit
     // fires immediately with a non-zero code.
     try {
       await handler.createSession(["/nonexistent/command_xyz"]);
-      // If createSession resolved, the process should have exited with an error code.
-      // waitForExit also returns null on timeout, which must not be confused with a
-      // real (but merely non-zero) exit code.
       const code = await handler.waitForExit(2000);
       expect(code).not.toBeNull();
       expect(code).not.toBe(0);
@@ -183,19 +166,16 @@ describe("PTY Integration", () => {
   it("timeout behavior: waitForExit returns null before process exits", async () => {
     await handler.createSession(["sleep", "10"]);
 
-    // 100ms timeout — process won't exit in time
     const result = await handler.waitForExit(100);
     expect(result).toBeNull();
     expect(handler.isProcessAlive()).toBe(true);
 
-    // Force terminate
     await handler.terminateProcess(true);
     await waitUntil(() => !handler.isProcessAlive(), 3000);
     expect(handler.isProcessAlive()).toBe(false);
   });
 
   it("sequential sessions: two independent sessions", async () => {
-    // First session
     const handler1 = new PtyHandler(SETTINGS);
     const collector1 = makeCollector();
     await handler1.createSession(
@@ -210,7 +190,6 @@ describe("PTY Integration", () => {
     expect(code1).toBe(0);
     expect(collector1.output()).toContain("first_session_output");
 
-    // Second session (handler from beforeEach)
     const collector2 = makeCollector();
     await handler.createSession(
       ["echo", "second_session_output"],
@@ -222,7 +201,6 @@ describe("PTY Integration", () => {
 
     expect(code2).toBe(0);
     expect(collector2.output()).toContain("second_session_output");
-    // outputs are independent
     expect(collector1.output()).not.toContain("second_session_output");
     expect(collector2.output()).not.toContain("first_session_output");
   });

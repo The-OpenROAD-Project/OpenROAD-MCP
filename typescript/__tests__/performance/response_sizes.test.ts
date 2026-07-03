@@ -1,13 +1,3 @@
-/**
- * Token efficiency and response compactness tests.
- * Port of tests/performance/test_response_sizes.py.
- *
- * Validates that the snake_case wire format produced by BaseTool.formatResult()
- * is compact enough to stay within AI-client token budgets (≈4 chars/token).
- *
- * Run: npm run test:performance
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toSnakeCase } from "../../src/tools/base.js";
 import type { InteractiveExecResult } from "../../src/core/models.js";
@@ -22,7 +12,7 @@ const EXEC_RESULT_TOKEN_BUDGET = 80;
 const SESSION_LIST_EMPTY_BUDGET = 30;
 const COMPACT_SAVINGS_MIN_PCT = 10.0;
 
-/** Rough token estimate: 1 token ≈ 4 chars (OpenAI tokenizer rule of thumb). */
+/** Rough token estimate: 1 token ~4 chars (OpenAI tokenizer rule of thumb). */
 function tokenEstimate(text: string): number {
   return Math.max(1, Math.floor(text.length / 4));
 }
@@ -84,7 +74,7 @@ describe("Token Efficiency", () => {
     expect(tokens).toBeLessThan(SESSION_LIST_EMPTY_BUDGET);
   });
 
-  it("compact JSON saves ≥ 10% tokens vs pretty-print", () => {
+  it("compact JSON saves >= 10% tokens vs pretty-print", () => {
     const obj = typicalExecResult() as unknown as Record<string, unknown>;
     const compact = wireFormat(obj);
     const pretty = JSON.stringify(toSnakeCase(obj), null, 2);
@@ -101,12 +91,12 @@ describe("Token Efficiency", () => {
 
   it("pinned token counts remain stable across refactors", () => {
     // These counts pin the exact wire format. If they change, a field was added,
-    // renamed, or removed — update after verifying the schema change is intentional.
+    // renamed, or removed - update after verifying the schema change is intentional.
     const minimal = wireFormat(minimalExecResult() as unknown as Record<string, unknown>);
     const emptyList = wireFormat(
       InteractiveSessionListResult.parse({ sessions: [], totalCount: 0, activeCount: 0, error: null }) as unknown as Record<string, unknown>,
     );
-    // Token counts (floor(len/4)) measured on first run — update if schema changes.
+    // Token counts (floor(len/4)) measured on first run - update if schema changes.
     expect(tokenEstimate(minimal)).toBeLessThanOrEqual(45);   // ~37 chars baseline
     expect(tokenEstimate(emptyList)).toBeLessThanOrEqual(20); // ~57 chars baseline
   });
