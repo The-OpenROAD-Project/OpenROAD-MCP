@@ -23,7 +23,9 @@ import { ListReportImagesTool, ReadReportImageTool } from "./tools/report_images
 
 const logger = getLogger("server");
 
-const VERSION = "0.5.0";
+// Keep in sync with package.json / pyproject.toml. The release workflow rewrites
+// all version strings from the git tag, so this tracks the shared release train.
+const VERSION = "0.5.5";
 
 function text(value: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text" as const, text: value }] };
