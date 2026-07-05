@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { CleanupManager } from "../../src/utils/cleanup.js";
-import { FORCE_EXIT_DELAY_SECONDS } from "../../src/constants.js";
+import { EXIT_CODE_ERROR, FORCE_EXIT_DELAY_SECONDS } from "../../src/constants.js";
 
 describe("CleanupManager", () => {
   afterEach(() => {
@@ -80,10 +80,11 @@ describe("CleanupManager", () => {
       await wait;
       expect(resolved).toBe(true);
 
-      // Force-exit fires only after the configured delay.
+      // Force-exit fires only after the configured delay, and exits non-zero
+      // because a forced exit means graceful shutdown did not complete.
       expect(exitSpy).not.toHaveBeenCalled();
       vi.advanceTimersByTime(FORCE_EXIT_DELAY_SECONDS * 1000);
-      expect(exitSpy).toHaveBeenCalledWith(0);
+      expect(exitSpy).toHaveBeenCalledWith(EXIT_CODE_ERROR);
     } finally {
       // Remove only the listeners this test added, leaving the runner's intact.
       for (const l of process.listeners("SIGTERM")) {

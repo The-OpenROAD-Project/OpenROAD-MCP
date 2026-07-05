@@ -1,4 +1,4 @@
-import { FORCE_EXIT_DELAY_SECONDS } from "../constants.js";
+import { EXIT_CODE_ERROR, FORCE_EXIT_DELAY_SECONDS } from "../constants.js";
 import { getLogger } from "./logging.js";
 
 const logger = getLogger("cleanup");
@@ -33,9 +33,16 @@ export class CleanupManager {
       logger.info(
         `Received ${signal}, shutting down (forcing exit in ${FORCE_EXIT_DELAY_SECONDS}s if it hangs)`,
       );
-      // Force-exit safety net: if graceful shutdown stalls, leave anyway. The
-      // timer is unref'd so it never keeps the event loop alive on its own.
-      const timer = setTimeout(() => process.exit(0), FORCE_EXIT_DELAY_SECONDS * 1000);
+      // Force-exit safety net: if graceful shutdown stalls, leave anyway. This
+      // path only fires when cleanup failed to finish in time, so it exits
+      // non-zero — a forced exit is an abnormal outcome, not a clean shutdown.
+      // The timer is unref'd so it never keeps the event loop alive on its own.
+      const timer = setTimeout(() => {
+        logger.error(
+          `Graceful shutdown did not complete within ${FORCE_EXIT_DELAY_SECONDS}s; forcing exit`,
+        );
+        process.exit(EXIT_CODE_ERROR);
+      }, FORCE_EXIT_DELAY_SECONDS * 1000);
       timer.unref();
       this.triggerShutdown();
     };
