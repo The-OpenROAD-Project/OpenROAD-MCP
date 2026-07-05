@@ -111,9 +111,10 @@ export class PtyHandler {
       if (/posix_spawnp failed|ENOENT|command not found/i.test(raw)) {
         throw new PTYError(
           `Failed to create PTY session: executable '${executable}' could not be started. ` +
-            `Common causes: (1) '${executable}' is missing from PATH or not executable ` +
-            `(PATH=${JSON.stringify(pathValue)}), or (2) node-pty's spawn-helper binary is not ` +
-            `executable — run: chmod +x node_modules/node-pty/prebuilds/*/spawn-helper`,
+            `Most likely '${executable}' is missing from PATH or not executable ` +
+            `(PATH=${JSON.stringify(pathValue)}). Rarely, node-pty's spawn-helper binary lost its ` +
+            `exec bit — the postinstall script normally restores it; if not (e.g. install ran ` +
+            `with --ignore-scripts), run: chmod +x node_modules/node-pty/prebuilds/*/spawn-helper`,
         );
       }
       throw new PTYError(`Failed to create PTY session: ${e}`);
