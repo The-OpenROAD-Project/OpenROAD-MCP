@@ -37,7 +37,11 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "skipLibCheck": false
+    // The @modelcontextprotocol/sdk streamable-HTTP transport's .d.ts does not
+    // satisfy exactOptionalPropertyTypes (its class onclose is typed as
+    // `(() => void) | undefined`), so lib checking must be skipped to consume
+    // it. Our own source is still fully type-checked.
+    "skipLibCheck": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "__tests__"]

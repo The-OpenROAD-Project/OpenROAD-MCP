@@ -64,6 +64,7 @@ export class PtyHandler {
     onData?: (data: string) => void,
     onExit?: (exitCode: number) => void,
   ): Promise<void> {
+    const executable = command[0] ?? "";
     try {
       this.validateCommand(command);
 
@@ -105,6 +106,17 @@ export class PtyHandler {
       }
     } catch (e) {
       if (e instanceof PTYError) throw e;
+      const raw = e instanceof Error ? e.message : String(e);
+      const pathValue = process.env.PATH ?? "";
+      if (/posix_spawnp failed|ENOENT|command not found/i.test(raw)) {
+        throw new PTYError(
+          `Failed to create PTY session: executable '${executable}' could not be started. ` +
+            `Most likely '${executable}' is missing from PATH or not executable ` +
+            `(PATH=${JSON.stringify(pathValue)}). Rarely, node-pty's spawn-helper binary lost its ` +
+            `exec bit — the postinstall script normally restores it; if not (e.g. install ran ` +
+            `with --ignore-scripts), run: chmod +x node_modules/node-pty/prebuilds/*/spawn-helper`,
+        );
+      }
       throw new PTYError(`Failed to create PTY session: ${e}`);
     }
   }
