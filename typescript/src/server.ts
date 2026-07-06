@@ -262,10 +262,20 @@ export async function shutdownOpenroad(): Promise<void> {
   }
 }
 
+// Cap request bodies so a large or malicious POST can't buffer unbounded
+// memory. 1 MB is generous for JSON-RPC control messages.
+const MAX_BODY_BYTES = 1_000_000;
+
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of req) {
-    chunks.push(chunk as Buffer);
+    const buf = chunk as Buffer;
+    total += buf.length;
+    if (total > MAX_BODY_BYTES) {
+      throw new Error(`Request body too large (>${MAX_BODY_BYTES} bytes)`);
+    }
+    chunks.push(buf);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
   if (raw.length === 0) return undefined;

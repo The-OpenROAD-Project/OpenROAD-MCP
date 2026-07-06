@@ -114,7 +114,7 @@ describe("PtyHandler", () => {
       await expect(handler.createSession(["openroad"])).rejects.toThrow(
         "could not be started",
       );
-      await expect(handler.createSession(["openroad"])).rejects.toThrow("PATH=");
+      await expect(handler.createSession(["openroad"])).rejects.toThrow("PATH is");
       await expect(handler.createSession(["openroad"])).rejects.toThrow("spawn-helper");
     });
 

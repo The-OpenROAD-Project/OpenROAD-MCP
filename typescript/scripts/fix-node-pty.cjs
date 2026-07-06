@@ -19,7 +19,8 @@ for (const entry of fs.readdirSync(prebuildsDir, { withFileTypes: true })) {
   try {
     const mode = fs.statSync(helper).mode & 0o777;
     if ((mode & 0o111) === 0) {
-      fs.chmodSync(helper, mode | 0o755);
+      // Only add exec bits; OR'ing 0o755 would also broaden read/write access.
+      fs.chmodSync(helper, mode | 0o111);
     }
   } catch {
     // Best effort; PTY spawn will surface a clearer error at runtime.
