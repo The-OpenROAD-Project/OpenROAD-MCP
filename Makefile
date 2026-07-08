@@ -70,6 +70,22 @@ test-performance: docker-test-build
 	@echo "Running performance tests (benchmarks, memory, stability)..."
 	@docker run --rm --init $(DOCKER_TEST_IMAGE) uv run pytest tests/performance/
 
+# TypeScript test targets (no Docker required - use bash/cat/echo from host)
+.PHONY: test-ts-integration
+test-ts-integration:
+	@echo "Running TypeScript integration tests..."
+	@cd typescript && npm run test:integration
+
+.PHONY: test-ts-performance
+test-ts-performance:
+	@echo "Running TypeScript performance tests..."
+	@cd typescript && npm run test:performance
+
+.PHONY: test-ts-all
+test-ts-all:
+	@echo "Running all TypeScript tests (unit + integration + performance)..."
+	@cd typescript && npm run test:all
+
 .PHONY: test-coverage
 test-coverage: docker-test-build
 	@echo "Running tests with coverage analysis..."

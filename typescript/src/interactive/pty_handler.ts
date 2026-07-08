@@ -107,17 +107,19 @@ export class PtyHandler {
     } catch (e) {
       if (e instanceof PTYError) throw e;
       const raw = e instanceof Error ? e.message : String(e);
-      const pathValue = process.env.PATH ?? "";
+      // Don't echo the full PATH into an error that may reach clients; just
+      // note whether it was set so the operator knows where to look in logs.
+      const pathHint = process.env.PATH ? "set" : "empty";
       if (/posix_spawnp failed|ENOENT|command not found/i.test(raw)) {
         throw new PTYError(
           `Failed to create PTY session: executable '${executable}' could not be started. ` +
             `Most likely '${executable}' is missing from PATH or not executable ` +
-            `(PATH=${JSON.stringify(pathValue)}). Rarely, node-pty's spawn-helper binary lost its ` +
+            `(PATH is ${pathHint}). Rarely, node-pty's spawn-helper binary lost its ` +
             `exec bit — the postinstall script normally restores it; if not (e.g. install ran ` +
             `with --ignore-scripts), run: chmod +x node_modules/node-pty/prebuilds/*/spawn-helper`,
         );
       }
-      throw new PTYError(`Failed to create PTY session: ${e}`);
+      throw new PTYError(`Failed to create PTY session: ${raw}`);
     }
   }
 
