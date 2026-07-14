@@ -2,10 +2,10 @@ name: TypeScript CI
 
 on:
   push:
-    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests", "feat/ts-standalone-publish"]
+    branches: [main, "feat/ts-migration**"]
     paths: ["typescript/**", "tests/golden/**", "Dockerfile.ts"]
   pull_request:
-    branches: [main, "feat/ts-migration**", "feat/ts-integration-tests", "feat/ts-standalone-publish"]
+    branches: [main, "feat/ts-migration**"]
     paths: ["typescript/**", "tests/golden/**", "Dockerfile.ts"]
 
 jobs:
