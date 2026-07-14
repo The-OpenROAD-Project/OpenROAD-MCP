@@ -205,7 +205,12 @@ __marimo__/
 # Claude
 .claude/settings.local.json
 
-# Project specfics
+# Node / TypeScript
+node_modules/
+coverage/
+*.js.map
+
+# Project specifics
 gcd_final
 gcd_optimization
 gcd_opt_v2
