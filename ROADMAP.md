@@ -205,6 +205,7 @@ The pre-release phase focuses on:
 | v0.5.3 | 2026-06-06 | Expanded agent docs (14+ clients), cross-platform CI, dependency bumps |
 | v0.5.4 | 2026-06-09 | Org migration to The-OpenROAD-Project, urllib3 CVE fix |
 | v0.5.5 | 2026-06-09 | Switch to pypi1 trusted publishing environment |
+| v0.6.0 | 2026-07-14 | TypeScript/npx distribution, dual npm+PyPI publish, golden parity tests |
 | v0.5 | Q2 2026 | Session persistence, e2e testing |
 | v0.8 | Q2 2026 | MCP registry publish, multi-client support, GUI integration |
 | v1.0 | Q2 2026 | API freeze, security audit, production hardening |
