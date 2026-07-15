@@ -7,19 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-07-14
-
 ### Added
-- TypeScript/Node.js implementation of the MCP server, published to npm and installable via `npx -y openroad-mcp` alongside the existing `uvx` (Python) distribution. Requires Node.js 22+ ([#118](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/118), [#126](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/126), [#127](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/127), [#130](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/130), [#135](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/135)).
-- Dual-publish release pipeline: tagged releases publish to PyPI, npm, GHCR, and the MCP Registry (with an npm package entry in `server.json`).
-- Node/OpenROAD Docker image (`Dockerfile.ts`) for running the TypeScript server with OpenROAD binaries.
-- Cross-implementation golden-file schema-parity and tool-manifest tests (`tests/golden/`) asserting the TypeScript wire output matches the Python contract.
-- TypeScript integration and performance test suites, including real-OpenROAD REPL cases for completion detection, prompt/ANSI stripping, large-output buffering, and liveness on process exit ([#136](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/136)).
-- README and QUICKSTART documentation for the `npx` install path alongside `uvx`.
+- TypeScript/Node.js implementation published to npm, installable via `npx -y openroad-mcp` alongside the existing `uvx` distribution. Requires Node.js 22+.
+- Cross-implementation golden-file schema-parity tests (`tests/golden/`) asserting the TypeScript wire output and tool manifest match the Python contract.
+- Real-OpenROAD REPL integration tests validating completion detection, prompt/ANSI stripping, large-output buffering, and liveness on process exit.
 
 ### Fixed
 - TypeScript session info now always serializes `error: null`, matching the Python wire contract.
-- npm package / advertised MCP server version is derived from the release tag / `package.json` so publishes never ship a stale version.
 
 ## [0.5.5] - 2026-06-09
 
@@ -132,7 +126,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - QUICKSTART guide, ARCHITECTURE, and CONTRIBUTING documentation
 - ROADMAP for planned features
 
-[0.6.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.6.0
 [0.5.5]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.5.5
 [0.5.4]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.5.4
 [0.5.3]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.5.3
