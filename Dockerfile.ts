@@ -40,14 +40,18 @@ RUN npm prune --omit=dev
 
 # Stage 3: runtime
 ARG ORFS_VERSION
-ARG NODE_MAJOR
 FROM openroad/orfs:${ORFS_VERSION} AS runtime
+ARG NODE_MAJOR
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl ca-certificates gnupg \
     && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+    
+RUN if ! node --version | grep -qE "^v${NODE_MAJOR}\."; then \
+        echo "ERROR: expected Node ${NODE_MAJOR}, got $(node --version)"; exit 1; \
+    fi
 
 RUN useradd --create-home --shell /bin/bash --uid 1000 --no-log-init appuser
 
