@@ -40,10 +40,8 @@ from openroad_mcp.core.models import (
     SessionHistoryResult,
     SessionInspectionResult,
     SessionMetricsResult,
-    SessionTerminationResult,
-)
-from openroad_mcp.core.models import (
     SessionState,
+    SessionTerminationResult,
 )
 
 GOLDEN_DIR = Path(__file__).parent
