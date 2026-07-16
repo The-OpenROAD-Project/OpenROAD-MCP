@@ -1,8 +1,14 @@
 {
   "name": "openroad-mcp",
-  "version": "0.5.0",
+  "version": "0.5.5",
   "description": "OpenROAD MCP server (TypeScript/npx)",
+  "mcpName": "io.github.the-openroad-project/openroad-mcp",
   "type": "module",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-OpenROAD-Project/openroad-mcp.git"
+  },
   "engines": {
     "node": ">=22"
   },
@@ -10,7 +16,8 @@
     "openroad-mcp": "./dist/main.js"
   },
   "files": [
-    "dist/"
+    "dist/",
+    "scripts/fix-node-pty.cjs"
   ],
   "scripts": {
     "postinstall": "node scripts/fix-node-pty.cjs",
@@ -24,7 +31,6 @@
     "test:all": "npm run test && npm run test:integration && npm run test:performance",
     "dev": "tsx src/main.ts"
   },
-  "license": "BSD-3-Clause",
   "devDependencies": {
     "@types/node": "^25.9.2",
     "@types/pidusage": "^2.0.5",

@@ -2,6 +2,8 @@
 
 Get up and running with OpenROAD MCP in under 5 minutes! This guide assumes you've already [installed OpenROAD MCP](README.md#installation).
 
+> **Runtime:** OpenROAD MCP ships as two interchangeable distributions — `npx` (needs **Node.js 22+**) or `uvx` (needs **Python 3.13+** and `uv`). Either exposes the same tools; pick whichever runtime you already have. See [Standard Configuration](README.md#standard-configuration).
+
 ## Verify Your Setup
 
 Check that OpenROAD MCP is loaded in your MCP client:

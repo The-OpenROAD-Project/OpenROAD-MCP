@@ -293,6 +293,10 @@ export class InteractiveSession {
       bufferSize: this.outputBuffer.size,
       uptimeSeconds: uptime,
       state: this._state,
+      // Always present so the wire shape matches Python's model_dump, which
+      // emits error:null for every BaseResult. Omitting it here would drop
+      // the key from the serialized session info (and from list entries).
+      error: null,
     };
   }
 

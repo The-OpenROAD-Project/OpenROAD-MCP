@@ -71,6 +71,16 @@ test-performance: docker-test-build
 	@docker run --rm --init $(DOCKER_TEST_IMAGE) uv run pytest tests/performance/
 
 # TypeScript test targets (no Docker required - use bash/cat/echo from host)
+.PHONY: test-ts
+test-ts:
+	@echo "Running TypeScript unit tests..."
+	@cd typescript && npm run test
+
+.PHONY: golden
+golden:
+	@echo "Regenerating cross-implementation golden files..."
+	@uv run python tests/golden/generate_golden.py
+
 .PHONY: test-ts-integration
 test-ts-integration:
 	@echo "Running TypeScript integration tests..."
@@ -109,11 +119,12 @@ inspect:
 
 .PHONY: test-all
 test-all:
-	@echo "Running all tests (core + interactive + tools + integration)..."
+	@echo "Running all tests (python core + interactive + tools + integration, typescript)..."
 	@$(MAKE) test
 	@$(MAKE) test-interactive
 	@$(MAKE) test-tools
 	@$(MAKE) test-integration
+	@$(MAKE) test-ts-all
 
 # Print any Makefile variable: make print-IMAGE_NAME
 print-%:

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- TypeScript/Node.js implementation published to npm, installable via `npx -y openroad-mcp` alongside the existing `uvx` distribution. Requires Node.js 22+.
+- Cross-implementation golden-file schema-parity tests (`tests/golden/`) asserting the TypeScript wire output and tool manifest match the Python contract.
+- Real-OpenROAD REPL integration tests validating completion detection, prompt/ANSI stripping, large-output buffering, and liveness on process exit.
+
+### Fixed
+- TypeScript session info now always serializes `error: null`, matching the Python wire contract.
+
 ## [0.5.5] - 2026-06-09
 
 ### Fixed

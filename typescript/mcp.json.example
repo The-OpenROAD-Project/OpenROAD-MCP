@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "openroad-mcp": {
+      "command": "npx",
+      "args": ["-y", "openroad-mcp"]
+    }
+  }
+}

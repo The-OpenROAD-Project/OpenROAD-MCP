@@ -24,9 +24,10 @@ A Model Context Protocol (MCP) server that provides tools for interacting with O
   - [Installation guide](https://openroad.readthedocs.io/en/latest/main/GettingStarted.html)
 - **OpenROAD-flow-scripts (ORFS)** for complete RTL-to-GDS flows (optional but recommended)
   - [ORFS installation guide](https://openroad-flow-scripts.readthedocs.io/)
-- **Python 3.13+** or higher
-- **uv** package manager
-  - Install: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **A runtime for one of the two distributions:**
+  - **Node.js 22+** for the `npx` distribution (recommended — no extra install if you already have Node)
+  - **or Python 3.13+ and the `uv` package manager** for the `uvx` distribution
+    - Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
 ## Support Matrix
 
@@ -75,7 +76,23 @@ For platform-specific setup instructions, see the [Cross-Platform Guide](docs/CR
 
 ### Standard Configuration
 
-The basic configuration for all MCP clients:
+The server ships as two interchangeable distributions with identical tools and
+behavior. Pick the one that matches your installed runtime.
+
+**npx (Node.js 22+) — recommended:**
+
+```json
+{
+  "mcpServers": {
+    "openroad-mcp": {
+      "command": "npx",
+      "args": ["-y", "openroad-mcp"]
+    }
+  }
+}
+```
+
+**uvx (Python 3.13+ and uv):**
 
 ```json
 {
@@ -92,9 +109,13 @@ The basic configuration for all MCP clients:
 }
 ```
 
-> **Note:** The URL above is pinned to a specific release for supply chain safety.
+> **Note:** The `uvx` URL above is pinned to a specific release for supply chain safety.
 > To always track the latest version instead, drop the `@v0.5.5` suffix:
 > `"git+https://github.com/The-OpenROAD-Project/openroad-mcp"`.
+
+> **Every client example below uses `uvx`. To use the npx distribution instead,**
+> swap the `"command"`/`"args"` for the npx block above — the server name, tools,
+> and behavior are identical.
 
 For local development, use:
 
@@ -713,10 +734,11 @@ Alternatively, use the standard `.mcp.json` format — Reasonix auto-discovers i
 <details>
 <summary><b>MCP Registry</b></summary>
 
-Once published to the [MCP Registry](https://registry.modelcontextprotocol.io), clients can discover and install directly:
+Once published to the [MCP Registry](https://registry.modelcontextprotocol.io), clients can discover and install directly using either distribution:
 
 ```bash
-uvx openroad-mcp
+npx -y openroad-mcp   # Node.js 22+
+uvx openroad-mcp      # Python 3.13+ and uv
 ```
 
 </details>
