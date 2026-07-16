@@ -101,7 +101,7 @@ WORKDIR /workspace
 RUN git clone https://github.com/luarss/openroad-mcp.git
 WORKDIR /workspace/openroad-mcp
 RUN uv venv
-RUN uv pip install -e .
+RUN uv pip install -e ./python
 
 # Copy and set up firewall script
 COPY init-firewall.sh /usr/local/bin/

@@ -21,7 +21,7 @@ if ! command -v uv &>/dev/null; then
 fi
 
 echo "📦 Installing project dependencies..."
-uv sync --all-extras --inexact
+(cd python && uv sync --all-extras --inexact)
 
 echo ""
 echo "✅ macOS setup complete!"
@@ -31,4 +31,4 @@ echo "  1. Install OpenROAD (optional, for full flows):"
 echo "     See: https://openroad.readthedocs.io/en/latest/main/GettingStarted.html"
 echo "  2. Or use Docker:    docker compose up openroad-mcp"
 echo "  3. Run tests:        make test"
-echo "  4. Start MCP server: uv run openroad-mcp"
+echo "  4. Start MCP server: uv run --project python openroad-mcp"

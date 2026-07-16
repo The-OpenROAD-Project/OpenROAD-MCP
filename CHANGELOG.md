@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - TypeScript/Node.js implementation published to npm, installable via `npx -y openroad-mcp` alongside the existing `uvx` distribution. Requires Node.js 22+.
-- Cross-implementation golden-file schema-parity tests (`tests/golden/`) asserting the TypeScript wire output and tool manifest match the Python contract.
+- Cross-implementation golden-file schema-parity tests (`python/tests/golden/`) asserting the TypeScript wire output and tool manifest match the Python contract.
 - Real-OpenROAD REPL integration tests validating completion detection, prompt/ANSI stripping, large-output buffering, and liveness on process exit.
 
 ### Fixed
