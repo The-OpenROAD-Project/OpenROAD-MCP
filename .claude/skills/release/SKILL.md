@@ -112,21 +112,28 @@ Change:
 ```
 To:
 ```
-"git+https://github.com/The-OpenROAD-Project/openroad-mcp@vX.Y.Z"
+"git+https://github.com/The-OpenROAD-Project/openroad-mcp@vX.Y.Z#subdirectory=python"
 ```
 
-Use a single perl pass that handles all three URL patterns in the README:
-- JSON/TOML quoted: `"git+https://...openroad-mcp@v0.5.3"`
-- YAML unquoted list item: `- git+https://...openroad-mcp@v0.5.3` (end of line)
+The `#subdirectory=python` fragment is required because the Python project lives
+under `python/`, not at the repo root — without it `uvx --from git+…` fails with
+"does not appear to be a Python project".
+
+Use a single perl pass that handles all three URL patterns in the README (and
+normalizes the `#subdirectory=python` fragment, re-pinning even URLs that already
+carry it):
+- JSON/TOML quoted: `"git+https://...openroad-mcp@v0.5.3#subdirectory=python"`
+- YAML unquoted list item: `- git+https://...openroad-mcp@v0.5.3#subdirectory=python` (end of line)
 - Bare (first-time pin): `"git+https://...openroad-mcp"`
 
 ```bash
-perl -i -pe 's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@vX.Y.Z!g' README.md python/README.md
+perl -i -pe 's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?:#subdirectory=python)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@vX.Y.Z#subdirectory=python!g' README.md python/README.md
 ```
 
 The `!` delimiter avoids clashing with the `|` inside the lookahead `(?="|$)`.
 The lookahead matches either a closing quote (JSON/TOML) or end of line (YAML),
-so all config formats are covered.
+so all config formats are covered. The optional `(?:#subdirectory=python)?` lets
+the pass re-pin URLs that already carry the fragment without doubling it.
 
 After updating, verify all pinned URLs show the new tag:
 ```bash

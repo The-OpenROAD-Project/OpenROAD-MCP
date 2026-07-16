@@ -29,7 +29,7 @@ architecture docs, see the [main project README](../README.md) and the
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ]
     }
