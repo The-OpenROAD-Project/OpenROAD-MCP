@@ -70,11 +70,17 @@ ENV PATH="/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scrip
     ORFS_FLOW_PATH=/OpenROAD-flow-scripts/flow
 
 # Verify the entrypoint boots, the openroad binary is reachable, and the ORFS
-# flow path exists. Each check reports its own cause so a failure isn't
-# misattributed (A && B && C || D would blame D for any of the three).
-RUN node /app/dist/main.js --help > /dev/null || (echo "ERROR: entrypoint 'node dist/main.js --help' failed" && exit 1)
-RUN command -v openroad > /dev/null || (echo "ERROR: openroad binary not found on PATH" && exit 1)
-RUN test -d "${ORFS_FLOW_PATH}" || (echo "ERROR: ORFS_FLOW_PATH=${ORFS_FLOW_PATH} not found" && exit 1)
+# flow path exists. Each check is its own RUN so failures are attributed to
+# the right layer. --help exits 0 via commander (see cli.ts); that only ends
+# this RUN layer — later RUNs still execute. Output is left on stdout so
+# `docker build --progress=plain` / CI logs show the help text.
+RUN node /app/dist/main.js --help \
+    && echo "OK: entrypoint --help exited 0"
+RUN command -v openroad \
+    && openroad -version \
+    && echo "OK: openroad on PATH"
+RUN test -d "${ORFS_FLOW_PATH}" \
+    && echo "OK: ORFS_FLOW_PATH=${ORFS_FLOW_PATH}"
 
 ENTRYPOINT ["node", "/app/dist/main.js"]
 
