@@ -12,7 +12,7 @@ vi.mock("node-pty", () => ({ spawn: vi.fn() }));
 
 // Cross-implementation tool-contract check (doc Section 4).
 //
-// tests/golden/tool_manifest.json is generated from the Python FastMCP server
+// python/tests/golden/tool_manifest.json is generated from the Python FastMCP server
 // (generate_golden.py) and captures, per tool, the canonical param set
 // (name -> {type, required}) and the four annotation hints. Here we boot the
 // TypeScript server, read its own MCP tools/list output, normalize it the same

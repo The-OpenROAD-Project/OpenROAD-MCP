@@ -3,10 +3,10 @@ name: TypeScript CI
 on:
   push:
     branches: [main, "feat/ts-migration**"]
-    paths: ["typescript/**", "tests/golden/**", "Dockerfile.ts"]
+    paths: ["typescript/**", "python/tests/golden/**", "Dockerfile.ts"]
   pull_request:
     branches: [main, "feat/ts-migration**"]
-    paths: ["typescript/**", "tests/golden/**", "Dockerfile.ts"]
+    paths: ["typescript/**", "python/tests/golden/**", "Dockerfile.ts"]
 
 jobs:
   # Host-side lint/unit/integration/perf. Does not use the Docker image —

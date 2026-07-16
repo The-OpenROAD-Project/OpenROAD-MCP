@@ -1,7 +1,7 @@
 """Generate golden wire-format JSON files from the Python result models.
 
 These golden files are the shared serialization contract between the Python
-(`src/openroad_mcp`) and TypeScript (`typescript/src`) implementations. The
+(`python/src/openroad_mcp`) and TypeScript (`typescript/src`) implementations. The
 TypeScript suite reads the same files in
 `typescript/__tests__/golden/schema_parity.test.ts` and asserts its own
 serialization matches, so schema drift (renamed fields, `null` vs missing keys,
@@ -15,10 +15,12 @@ test compares structure and these stubbed values, not real runtime output.
 
 Run from the repo root:
 
-    uv run python tests/golden/generate_golden.py
+    make golden
 
-Regenerate and commit the `tests/golden/*.json` files whenever a result model
-changes on purpose.
+(equivalently: `cd python && uv run python tests/golden/generate_golden.py`)
+
+Regenerate and commit the `python/tests/golden/*.json` files whenever a result
+model changes on purpose.
 """
 
 from __future__ import annotations
