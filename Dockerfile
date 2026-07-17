@@ -14,12 +14,12 @@ ENV UV_PYTHON_INSTALL_DIR=/opt/python
 WORKDIR /app
 
 # Manifests first — dependency layer is cached independently of source changes.
-COPY pyproject.toml uv.lock ./
+COPY python/pyproject.toml python/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # --no-editable installs into site-packages; source tree not needed at runtime.
-COPY src/ ./src/
-COPY README.md ./
+COPY python/src/ ./src/
+COPY python/README.md ./
 RUN uv sync --frozen --no-dev --no-editable
 
 
@@ -53,7 +53,7 @@ ENTRYPOINT ["openroad-mcp"]
 
 # Stage 3: test — pinned ORFS version + uv inherited from builder
 FROM builder AS test
-COPY tests/ ./tests/
+COPY python/tests/ ./tests/
 RUN uv sync --frozen --all-extras
 ENV PYTHONPATH=/app/src
 ENV PATH="/app/.venv/bin:/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scripts/tools/install/yosys/bin:$PATH"

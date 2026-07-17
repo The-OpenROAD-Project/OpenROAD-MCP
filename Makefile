@@ -7,32 +7,32 @@ IMAGE_NAME:= ghcr.io/the-openroad-project/openroad-mcp
 
 .PHONY: sync
 sync:
-	@uv sync --all-extras --inexact
+	@cd python && uv sync --all-extras --inexact
 
 .PHONY: reqs
 reqs:
-	@rm -f requirements.txt
-	@rm -f requirements-test.txt
-	@uv sync --all-extras --inexact  --upgrade
-	@uv pip compile --output-file=requirements.txt pyproject.toml --upgrade
-	@uv pip compile --output-file=requirements-test.txt pyproject.toml --extra dev  --upgrade
+	@cd python && rm -f requirements.txt
+	@cd python && rm -f requirements-test.txt
+	@cd python && uv sync --all-extras --inexact  --upgrade
+	@cd python && uv pip compile --output-file=requirements.txt pyproject.toml --upgrade
+	@cd python && uv pip compile --output-file=requirements-test.txt pyproject.toml --extra dev  --upgrade
 
 .PHONY: format
 format:
-	@uv run ruff format .
-	@uv run ruff check . --fix
+	@cd python && uv run ruff format .
+	@cd python && uv run ruff check . --fix
 
 .PHONY: check
 check:
-	@uv run ruff check
-	@uv run mypy .
-	@uv run pre-commit run --all-files
+	@cd python && uv run ruff check
+	@cd python && uv run mypy .
+	@uv run --project python pre-commit run --all-files
 
 # Test targets
 .PHONY: test
 test:
 	@echo "Running core tests..."
-	@uv run pytest --ignore=tests/interactive --ignore=tests/performance --ignore=tests/integration
+	@cd python && uv run pytest --ignore=tests/interactive --ignore=tests/performance --ignore=tests/integration
 
 # Build Docker test image
 .PHONY: docker-test-build
@@ -63,7 +63,7 @@ test-integration: docker-test-build
 .PHONY: test-tools
 test-tools:
 	@echo "Running MCP tools tests..."
-	@uv run pytest tests/tools/
+	@cd python && uv run pytest tests/tools/
 
 .PHONY: test-performance
 test-performance: docker-test-build
@@ -79,7 +79,7 @@ test-ts:
 .PHONY: golden
 golden:
 	@echo "Regenerating cross-implementation golden files..."
-	@uv run python tests/golden/generate_golden.py
+	@cd python && uv run python tests/golden/generate_golden.py
 
 .PHONY: test-ts-integration
 test-ts-integration:
@@ -115,7 +115,7 @@ test-coverage: docker-test-build
 inspect:
 	@MCP_SERVER_REQUEST_TIMEOUT=$(MCP_SERVER_REQUEST_TIMEOUT) \
 		MCP_REQUEST_MAX_TOTAL_TIMEOUT=$(MCP_REQUEST_MAX_TOTAL_TIMEOUT) \
-		npx @modelcontextprotocol/inspector@0.19.0 uv run openroad-mcp
+		npx @modelcontextprotocol/inspector@0.19.0 uv run --project python openroad-mcp
 
 .PHONY: test-all
 test-all:

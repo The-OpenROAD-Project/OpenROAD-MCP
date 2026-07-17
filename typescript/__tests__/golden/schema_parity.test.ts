@@ -24,7 +24,7 @@ import {
 
 // Cross-implementation schema-parity check.
 //
-// The Python golden files (tests/golden/*.json, produced by
+// The Python golden files (python/tests/golden/*.json, produced by
 // generate_golden.py) are the wire-format contract. Here we build the
 // equivalent objects through the SAME TypeScript types and serialize them the
 // SAME way production does (BaseTool.formatResult -> toSnakeCase, plus

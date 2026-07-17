@@ -26,7 +26,7 @@ project. It ensures every file that references the version gets updated consiste
 
 - **Build system**: hatchling (Python)
 - **Package manager**: uv
-- **Version source**: `pyproject.toml` `[project] version`
+- **Version source**: `python/pyproject.toml` `[project] version`
 - **Changelog format**: Keep a Changelog
 - **Commit style**: Conventional Commits (`feat:`, `fix:`, `chore:`, etc.)
 - **GitHub repo**: `The-OpenROAD-Project/openroad-mcp`
@@ -36,10 +36,10 @@ project. It ensures every file that references the version gets updated consiste
 
 ### Step 1: Determine versions
 
-Read the current version from `pyproject.toml`:
+Read the current version from `python/pyproject.toml`:
 
 ```
-grep '^version = ' pyproject.toml
+grep '^version = ' python/pyproject.toml
 ```
 
 Then ask the user what the new version should be. Suggest the next logical
@@ -95,7 +95,7 @@ number, just use the description part after the prefix.
 These files must be updated with the new version. Update ALL of them — missing
 one breaks the release consistency.
 
-**pyproject.toml** — Update `version = "X.Y.Z"` in the `[project]` section.
+**python/pyproject.toml** — Update `version = "X.Y.Z"` in the `[project]` section.
 
 **server.json** — Update all three version references:
 - Top-level `"version": "X.Y.Z"`
@@ -112,29 +112,36 @@ Change:
 ```
 To:
 ```
-"git+https://github.com/The-OpenROAD-Project/openroad-mcp@vX.Y.Z"
+"git+https://github.com/The-OpenROAD-Project/openroad-mcp@vX.Y.Z#subdirectory=python"
 ```
 
-Use a single perl pass that handles all three URL patterns in the README:
-- JSON/TOML quoted: `"git+https://...openroad-mcp@v0.5.3"`
-- YAML unquoted list item: `- git+https://...openroad-mcp@v0.5.3` (end of line)
+The `#subdirectory=python` fragment is required because the Python project lives
+under `python/`, not at the repo root — without it `uvx --from git+…` fails with
+"does not appear to be a Python project".
+
+Use a single perl pass that handles all three URL patterns in the README (and
+normalizes the `#subdirectory=python` fragment, re-pinning even URLs that already
+carry it):
+- JSON/TOML quoted: `"git+https://...openroad-mcp@v0.5.3#subdirectory=python"`
+- YAML unquoted list item: `- git+https://...openroad-mcp@v0.5.3#subdirectory=python` (end of line)
 - Bare (first-time pin): `"git+https://...openroad-mcp"`
 
 ```bash
-perl -i -pe 's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@vX.Y.Z!g' README.md
+perl -i -pe 's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?:#subdirectory=python)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@vX.Y.Z#subdirectory=python!g' README.md python/README.md
 ```
 
 The `!` delimiter avoids clashing with the `|` inside the lookahead `(?="|$)`.
 The lookahead matches either a closing quote (JSON/TOML) or end of line (YAML),
-so all config formats are covered.
+so all config formats are covered. The optional `(?:#subdirectory=python)?` lets
+the pass re-pin URLs that already carry the fragment without doubling it.
 
 After updating, verify all pinned URLs show the new tag:
 ```bash
-grep "The-OpenROAD-Project/openroad-mcp@" README.md
+grep "The-OpenROAD-Project/openroad-mcp@" README.md python/README.md
 ```
 Every line should show `@vX.Y.Z`. Also confirm no bare URLs remain:
 ```bash
-grep 'The-OpenROAD-Project/openroad-mcp"' README.md
+grep 'The-OpenROAD-Project/openroad-mcp"' README.md python/README.md
 ```
 That should return no output.
 
@@ -144,7 +151,7 @@ That should return no output.
 > safety for convenience — acceptable for local/dev setups, not recommended
 > for shared or production environments.
 
-**uv.lock** — Regenerate by running `uv lock`. Do NOT hand-edit this file.
+**python/uv.lock** — Regenerate by running `uv lock` from `python/`. Do NOT hand-edit this file.
 
 **CHANGELOG.md** — Add new section before the previous version's section.
 Today's date goes in the header. Add the link at the bottom:
@@ -162,7 +169,7 @@ release's description.
 Run the test suite to verify nothing is broken:
 
 ```bash
-python -m pytest --tb=short -q
+cd python && uv run pytest --tb=short -q
 ```
 
 If tests fail, report the failures to the user before proceeding. Do not commit
@@ -173,7 +180,7 @@ a broken release.
 Stage only the release-related files:
 
 ```bash
-git add CHANGELOG.md ROADMAP.md pyproject.toml server.json uv.lock README.md
+git add CHANGELOG.md ROADMAP.md python/pyproject.toml server.json python/uv.lock README.md python/README.md
 ```
 
 Commit with the message:

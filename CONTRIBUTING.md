@@ -75,10 +75,10 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 
 ### Test Structure
 
-- Unit tests in `tests/` for individual components
-- Integration tests in `tests/integration/` for full workflows
-- Interactive PTY tests in `tests/interactive/`
-- Performance tests in `tests/performance/`
+- Unit tests in `python/tests/` for individual components
+- Integration tests in `python/tests/integration/` for full workflows
+- Interactive PTY tests in `python/tests/interactive/`
+- Performance tests in `python/tests/performance/`
 
 ### Running Tests
 
