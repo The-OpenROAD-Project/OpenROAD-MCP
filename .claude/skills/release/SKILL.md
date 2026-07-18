@@ -97,8 +97,13 @@ one breaks the release consistency.
 
 **python/pyproject.toml** — Update `version = "X.Y.Z"` in the `[project]` section.
 
-**server.json** — Update all three version references:
+**typescript/package.json** (+ lockfile) — Update the npm package version to match
+(e.g. `npm version --prefix typescript --no-git-tag-version X.Y.Z`). The
+TypeScript server reads its advertised MCP version from `package.json`.
+
+**server.json** — Update all version references:
 - Top-level `"version": "X.Y.Z"`
+- npm package `"version": "X.Y.Z"`
 - PyPI package `"version": "X.Y.Z"`
 - OCI identifier `"identifier": "ghcr.io/The-OpenROAD-Project/openroad-mcp:X.Y.Z"`
 
@@ -180,7 +185,8 @@ a broken release.
 Stage only the release-related files:
 
 ```bash
-git add CHANGELOG.md ROADMAP.md python/pyproject.toml server.json python/uv.lock README.md python/README.md
+git add CHANGELOG.md ROADMAP.md python/pyproject.toml server.json python/uv.lock \
+        README.md python/README.md typescript/package.json typescript/package-lock.json
 ```
 
 Commit under the `openroad-ci` bot identity (public org member — required so the

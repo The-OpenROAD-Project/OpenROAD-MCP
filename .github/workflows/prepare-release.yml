@@ -29,19 +29,37 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
 
-      - name: Install dependencies
+      - name: Set up Node.js
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: typescript/package-lock.json
+
+      - name: Install Python dependencies
         run: make sync
 
-      - name: Run tests
+      - name: Install TypeScript dependencies
+        run: npm ci
+        working-directory: typescript
+
+      - name: Run Python tests
         run: make test
 
-      - name: Run checks
+      - name: Run Python checks
         run: make check
+
+      - name: Run TypeScript checks
+        working-directory: typescript
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test
 
       - name: Compute new version
         id: version
         run: |
-          CURRENT=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          CURRENT=$(grep '^version = ' python/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
           case "${{ inputs.bump_type }}" in
             major) MAJ=$((MAJ+1)); MIN=0; PAT=0 ;;
@@ -58,11 +76,17 @@ jobs:
       - name: Generate changelog entries
         run: python3 .github/scripts/generate_changelog_section.py
 
-      - name: Update pyproject.toml
+      - name: Update python/pyproject.toml
         run: |
           OLD="${{ steps.version.outputs.current }}"
           NEW="${{ steps.version.outputs.new }}"
-          sed -i "s/^version = \"${OLD}\"/version = \"${NEW}\"/" pyproject.toml
+          sed -i "s/^version = \"${OLD}\"/version = \"${NEW}\"/" python/pyproject.toml
+
+      - name: Update typescript/package.json
+        working-directory: typescript
+        run: |
+          npm version --no-git-tag-version --allow-same-version \
+            "${{ steps.version.outputs.new }}"
 
       - name: Update server.json
         run: |
@@ -76,9 +100,11 @@ jobs:
       - name: Update README.md URLs
         run: |
           TAG="${{ steps.version.outputs.tag }}"
+          # Re-pin uvx git URLs and preserve/normalize #subdirectory=python
+          # (Python package lives under python/, not repo root).
           perl -i -pe \
-            's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@'"${TAG}"'!g' \
-            README.md
+            's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?:#subdirectory=python)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@'"${TAG}"'#subdirectory=python!g' \
+            README.md python/README.md
 
       - name: Update CHANGELOG.md
         run: |
@@ -86,19 +112,28 @@ jobs:
             "${{ steps.version.outputs.new }}" \
             "${{ steps.version.outputs.tag }}"
 
-      - name: Regenerate uv.lock
+      - name: Regenerate python/uv.lock
         run: uv lock
+        working-directory: python
 
       - name: Verify no stale version references
         run: |
           OLD="${{ steps.version.outputs.current }}"
-          FOUND=$(grep -r "${OLD}" --include="*.toml" --include="*.json" . 2>/dev/null || true)
+          NEW="${{ steps.version.outputs.new }}"
+          # Ignore lockfile noise and node_modules; check project version sources.
+          FOUND=$(grep -rn "${OLD}" \
+            --include="pyproject.toml" \
+            --include="package.json" \
+            --include="package-lock.json" \
+            --include="server.json" \
+            python/pyproject.toml typescript/package.json typescript/package-lock.json server.json \
+            2>/dev/null || true)
           if [ -n "$FOUND" ]; then
-            echo "WARNING: old version ${OLD} still found in:"
+            echo "ERROR: old version ${OLD} still found after bump to ${NEW}:"
             echo "$FOUND"
-          else
-            echo "All version references updated cleanly."
+            exit 1
           fi
+          echo "Version sources updated cleanly to ${NEW}."
 
       - name: Create release branch and commit
         run: |
@@ -108,7 +143,14 @@ jobs:
           git config user.name "openroad-ci"
           git config user.email "54529053+openroad-ci@users.noreply.github.com"
           git checkout -b "${BRANCH}"
-          git add pyproject.toml uv.lock README.md CHANGELOG.md
+          git add \
+            python/pyproject.toml \
+            python/uv.lock \
+            typescript/package.json \
+            typescript/package-lock.json \
+            README.md \
+            python/README.md \
+            CHANGELOG.md
           if [ -f server.json ]; then git add server.json; fi
           git commit -m "chore: release ${TAG}"
           git push -u origin "${BRANCH}"
@@ -123,6 +165,8 @@ jobs:
             --title "chore: release ${TAG}" \
             --body "$(cat <<EOF
           ## Release ${TAG}
+
+          Dual-distribution bump (Python/PyPI + TypeScript/npm).
 
           See [CHANGELOG.md](CHANGELOG.md) for full details.
 
