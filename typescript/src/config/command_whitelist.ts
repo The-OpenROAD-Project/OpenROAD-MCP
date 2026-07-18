@@ -1,0 +1,380 @@
+/**
+ * Command filter for OpenROAD PTY session security.
+ *
+ * Prevents execution of dangerous OS-level Tcl commands by AI agents.
+ *
+ * Three-tier design:
+ *
+ *   BLOCKED_COMMANDS    - denied in both tools (OS-level Tcl built-ins that can
+ *                         escape the EDA sandbox)
+ *
+ *   EXEC_ONLY_PATTERNS  - explicitly known state-modifying commands; denied in
+ *                         the query tool, allowed in the exec tool
+ *
+ *   READONLY_PATTERNS   - explicitly known safe read-only commands; allowed in
+ *                         both tools
+ *
+ *   Unknown commands    - treated as exec-only: denied in the query tool,
+ *                         allowed in the exec tool (they will fail at the Tcl
+ *                         level if invalid)
+ *
+ * This is distinct from PtyHandler.validateCommand(), which guards the shell
+ * binary/args. This module guards the Tcl statements sent to the REPL.
+ */
+
+import { Minimatch } from "minimatch";
+import { getLogger } from "../utils/logging.js";
+
+const logger = getLogger("command_whitelist");
+
+// Blocked commands - denied in both query and exec tools.
+export const BLOCKED_COMMANDS: ReadonlySet<string> = new Set([
+  "quit", // Terminate the OpenROAD process (ORFS uses exit instead)
+  "socket", // Network connections
+  "load", // Load compiled C extensions into the interpreter
+  "glob", // Filesystem enumeration
+  "fconfigure", // I/O channel configuration
+  "chan", // Channel operations
+  "vwait", // Block the event loop
+  "rename", // Renames/removes commands, can bypass top-level checks
+  "after", // Schedules arbitrary code execution
+  "subst", // Performs substitutions that can invoke arbitrary commands
+]);
+
+// Exec-only commands - denied in the query, allowed in the exec tool.
+// Unknown commands are implicitly exec-only and do not need to appear here.
+export const EXEC_ONLY_PATTERNS: readonly string[] = [
+  // ORFS file and process operations
+  "exec", // Run external tools (Yosys, KLayout, Python helpers)
+  "source", // Load Tcl scripts (primary ORFS script-loading mechanism)
+  "exit", // Process exit (used in ORFS error handlers)
+  "open", // Open file handles (reports, SDC files, metrics)
+  "close", // Close file handles
+  "file", // Filesystem ops: mkdir, delete, link, copy
+  "cd", // Change working directory (used in platform setup scripts)
+  "uplevel", // Evaluate in parent stack frame (used by ORFS log_cmd)
+  // OpenROAD constraints / design setup
+  "set_*",
+  "create_*",
+  // File I/O through OpenROAD wrappers
+  "read_*",
+  "write_*",
+  // OpenROAD flow commands
+  "initialize_floorplan",
+  "place_pins",
+  "global_placement",
+  "detailed_placement",
+  "clock_tree_synthesis",
+  "global_route",
+  "detailed_route",
+  "repair_design",
+  "repair_timing",
+  "repair_clock_nets",
+  // OpenROAD utility
+  "log_begin",
+  "log_end",
+];
+
+// Safe Tcl built-ins - usable in both tools.
+// Intentionally excludes body-eval builtins (if, for, foreach, while, proc,
+// catch, namespace, uplevel) because they accept a script body argument and
+// can therefore wrap any dangerous command: `catch { exec ls }` would pass the
+// verb check on `catch` alone. Those builtins belong in the exec tool.
+export const _TCL_BUILTINS: readonly string[] = [
+  "puts",
+  "set",
+  "expr",
+  "return",
+  "break",
+  "continue",
+  "list",
+  "llength",
+  "lindex",
+  "lappend",
+  "lrange",
+  "lsort",
+  "lsearch",
+  "lreplace",
+  "string",
+  "regexp",
+  "regsub",
+  "format",
+  "scan",
+  "array",
+  "dict",
+  "error",
+  "upvar",
+  "global",
+  "variable",
+  "concat",
+  "join",
+  "split",
+  "incr",
+  "append",
+  "info",
+  "unset",
+];
+
+// Read-only OpenROAD command patterns - allowed in the query tool.
+export const READONLY_PATTERNS: readonly string[] = [
+  // OpenROAD reporting
+  "report_*",
+  // OpenROAD design queries
+  "get_*",
+  // OpenROAD validation
+  "check_*",
+  // OpenROAD analysis
+  "estimate_parasitics",
+  "sta",
+  // OpenROAD utility
+  "help",
+  "version",
+  ..._TCL_BUILTINS,
+];
+
+// Python uses fnmatch.fnmatch, which (unlike default glob) does not special-case
+// a leading dot. `dot: true` makes minimatch's `*` match leading dots too, so
+// single-token verb matching stays faithful to the Python implementation.
+const MINIMATCH_OPTS = { dot: true } as const;
+
+// Pre-compile all glob patterns once at module load (~30x faster than calling
+// minimatch() on every check, which recompiles the regex on each invocation).
+const EXEC_ONLY_MATCHERS = EXEC_ONLY_PATTERNS.map((p) => new Minimatch(p, MINIMATCH_OPTS));
+const READONLY_MATCHERS = READONLY_PATTERNS.map((p) => new Minimatch(p, MINIMATCH_OPTS));
+
+function matchesAny(verb: string, matchers: readonly Minimatch[]): boolean {
+  return matchers.some((m) => m.match(verb));
+}
+
+/**
+ * Resolve Tcl backslash substitution within a single command word so an
+ * obfuscated verb matches the command Tcl will actually run. Tcl drops a
+ * backslash before an ordinary character (`\socket` -> `socket`) and decodes
+ * numeric escapes (`\x73`/`\163`/`s` -> `s`), so without this a blocked
+ * verb could be smuggled past the allowlist as its literal-backslash form. A
+ * real command name never contains a backslash, so this only normalises
+ * obfuscation and never alters a legitimate verb.
+ */
+function tclUnescape(token: string): string {
+  if (!token.includes("\\")) return token;
+  let out = "";
+  for (let i = 0; i < token.length; i++) {
+    if (token[i] !== "\\" || i + 1 >= token.length) {
+      out += token[i];
+      continue;
+    }
+    const c = token[i + 1]!;
+    const simple: Record<string, string> = {
+      a: "\x07", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v",
+    };
+    if (c in simple) {
+      out += simple[c];
+      i++;
+    } else if (c === "x") {
+      const m = /^[0-9a-fA-F]+/.exec(token.slice(i + 2));
+      if (m) {
+        out += String.fromCharCode(parseInt(m[0], 16) & 0xff);
+        i += 1 + m[0].length;
+      } else {
+        out += "x";
+        i++;
+      }
+    } else if (c === "u" || c === "U") {
+      const m = new RegExp(`^[0-9a-fA-F]{1,${c === "u" ? 4 : 8}}`).exec(token.slice(i + 2));
+      if (m) {
+        out += String.fromCodePoint(parseInt(m[0], 16));
+        i += 1 + m[0].length;
+      } else {
+        out += c;
+        i++;
+      }
+    } else if (c >= "0" && c <= "7") {
+      const m = /^[0-7]{1,3}/.exec(token.slice(i + 1))!;
+      out += String.fromCharCode(parseInt(m[0], 8) & 0xff);
+      i += m[0].length;
+    } else {
+      // Backslash before an ordinary char: drop the backslash, keep the char.
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/**
+ * Return the command verb (first token) of a single Tcl statement.
+ *
+ * Returns null only for blank lines and comment lines. Lines that start with a
+ * substitution or grouping character (`$`, `[`, `]`, `{`, `}`) are returned
+ * as-is so the caller can reject them via the allowlist. Backslash escapes in
+ * the verb are resolved (see tclUnescape) so `\socket` is matched as `socket`.
+ */
+export function extractVerb(statement: string): string | null {
+  const stripped = statement.trim();
+  if (stripped === "" || stripped.startsWith("#")) {
+    return null;
+  }
+  const firstToken = stripped.split(/\s+/)[0]!.replace(/;+$/, "");
+  return tclUnescape(firstToken);
+}
+
+// Unicode line-boundary characters that Python's str.splitlines() recognises.
+// Treating every one of these (not just \n) as a statement separator closes a
+// \r-based bypass where a second command is hidden after a carriage return.
+const STATEMENT_SEPARATORS: ReadonlySet<string> = new Set([
+  "\n",
+  "\r",
+  "\v",
+  "\f",
+  "\x1c",
+  "\x1d",
+  "\x1e",
+  "\x85",
+  " ",
+  " ",
+]);
+
+/**
+ * Split a Tcl command string into individual statements, respecting quoted
+ * strings and brace groups so that separators inside them are not treated as
+ * statement boundaries (e.g. `puts "hello; world"` is one statement). Statement
+ * separators are `;` plus every Unicode line boundary in STATEMENT_SEPARATORS,
+ * so a bare \r cannot hide a second command from the verb check.
+ */
+function splitTclStatements(command: string): string[] {
+  const stmts: string[] = [];
+  let depth = 0;
+  let inQuote = false;
+  let current = "";
+  // In Tcl a `"` only opens a quoted string at the start of a word; a quote in
+  // the middle of a word (e.g. `a"b`) is a literal. Track word boundaries so an
+  // unbalanced mid-word quote cannot flip us into quote mode and swallow the
+  // separator that follows it.
+  let atWordStart = true;
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (ch === "\\" && i + 1 < command.length) {
+      current += ch + command[i + 1]!;
+      i++;
+      atWordStart = false;
+    } else if (ch === '"' && depth === 0 && (inQuote || atWordStart)) {
+      inQuote = !inQuote;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && ch === "{") {
+      depth++;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && ch === "}") {
+      // Clamp at zero: an unbalanced close brace must not drive depth negative,
+      // which would make the `depth === 0` separator test below permanently
+      // false and hide every subsequent statement from the verb check.
+      if (depth > 0) depth--;
+      current += ch;
+      atWordStart = false;
+    } else if (!inQuote && depth === 0 && (ch === ";" || STATEMENT_SEPARATORS.has(ch))) {
+      stmts.push(current);
+      current = "";
+      atWordStart = true;
+    } else {
+      current += ch;
+      // Whitespace and `[` (which begins a command substitution) start a new
+      // word, so a `"` immediately after them is again quote-significant.
+      atWordStart = ch === " " || ch === "\t" || ch === "[";
+    }
+  }
+  if (current) stmts.push(current);
+  return stmts;
+}
+
+/**
+ * Iterate the verbs of a Tcl command string.
+ *
+ * Per statement, in a Tcl-aware split (separators inside quotes/braces are
+ * ignored; `;` plus all Unicode line boundaries are separators so a \r cannot
+ * hide a command), two kinds of verb are yielded:
+ * 1. The statement verb — its leading token.
+ * 2. Bracket verbs — the command word following each `[` (bracket
+ *    substitution). This catches `set x [exec ls]` where the outer verb `set`
+ *    is safe but the substituted command `exec` is not.
+ *
+ * The bracket word is captured up to the first delimiter, so a substituted
+ * command whose name is itself dynamic is surfaced rather than skipped: a
+ * variable name (`[$x ls]`) yields `$x` and a nested substitution
+ * (`[[set x exec] ls]`) yields `[set`. Neither is in any allowlist, so the
+ * read-only tool rejects them instead of letting Tcl resolve `$x`->exec at
+ * runtime and run an arbitrary command. Backslash escapes are then resolved
+ * (see tclUnescape) so `[\exec ls]` is matched as `exec`.
+ *
+ * Comment and blank statements (extractVerb returns null) are skipped entirely,
+ * including their brackets: a `#` comment is discarded at Tcl parse time and is
+ * never executed, so `# harmless [exec ls]` must not be rejected on the `exec`.
+ * Brackets inside brace-quoted arguments are still scanned, because commands
+ * like `expr`/`eval` re-evaluate brace contents, so they cannot be assumed inert.
+ */
+function* iterVerbs(command: string): Generator<string> {
+  for (const stmt of splitTclStatements(command)) {
+    const verb = extractVerb(stmt);
+    if (verb === null) continue;
+    yield verb;
+    // `[` includes itself in the class so a nested `[[...]` substitution yields
+    // a `[`-led token; `$` is included so a `[$var]` indirection yields `$var`.
+    for (const match of stmt.matchAll(/\[\s*(?::+)?([^\s\]{};]+)/g)) {
+      yield tclUnescape(match[1]!).replace(/^:+/, "");
+    }
+  }
+}
+
+/**
+ * Check whether `command` is safe for the read-only query tool.
+ *
+ * A verb is allowed only when it matches READONLY_PATTERNS and is not in
+ * BLOCKED_COMMANDS. Commands in EXEC_ONLY_PATTERNS and unknown commands are
+ * both treated as exec-only and are rejected here.
+ */
+export function isQueryCommand(command: string): [boolean, string | null] {
+  for (const verb of iterVerbs(command)) {
+    if (BLOCKED_COMMANDS.has(verb)) {
+      logger.warn(`Blocked command '${verb}' (explicit blocklist)`);
+      return [false, verb];
+    }
+
+    if (!matchesAny(verb, READONLY_MATCHERS)) {
+      if (matchesAny(verb, EXEC_ONLY_MATCHERS)) {
+        logger.warn(`Blocked command '${verb}' (exec-only, use the exec tool)`);
+      } else {
+        logger.warn(`Blocked command '${verb}' (unknown, treated as exec-only)`);
+      }
+      return [false, verb];
+    }
+  }
+
+  return [true, null];
+}
+
+/**
+ * Check whether `command` is safe for the state-modifying exec tool.
+ *
+ * Blocks only BLOCKED_COMMANDS (OS-level danger). All other commands -
+ * including EXEC_ONLY_PATTERNS, READONLY_PATTERNS, and unknown ones - are
+ * allowed; they will fail at the Tcl level if invalid.
+ */
+export function isExecCommand(command: string): [boolean, string | null] {
+  for (const verb of iterVerbs(command)) {
+    if (BLOCKED_COMMANDS.has(verb)) {
+      logger.warn(`Blocked command '${verb}' (explicit blocklist)`);
+      return [false, verb];
+    }
+  }
+
+  return [true, null];
+}
+
+/**
+ * Check `command` against BLOCKED_COMMANDS only (allow-by-default).
+ * Equivalent to isExecCommand. Kept for backward compatibility.
+ */
+export function isCommandAllowed(command: string): [boolean, string | null] {
+  return isExecCommand(command);
+}

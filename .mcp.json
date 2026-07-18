@@ -4,6 +4,8 @@
       "command": "uv",
       "args": [
         "run",
+        "--project",
+        "python",
         "openroad-mcp"
       ],
       "env": {

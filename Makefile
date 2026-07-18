@@ -7,24 +7,25 @@ IMAGE_NAME:= ghcr.io/the-openroad-project/openroad-mcp
 
 .PHONY: sync
 sync:
-	@uv sync --all-extras --inexact
+	@cd python && uv sync --all-extras --inexact
+
 
 .PHONY: format
 format:
-	@uv run ruff format .
-	@uv run ruff check . --fix
+	@cd python && uv run ruff format .
+	@cd python && uv run ruff check . --fix
 
 .PHONY: check
 check:
-	@uv run ruff check
-	@uv run mypy .
-	@uv run pre-commit run --all-files
+	@cd python && uv run ruff check
+	@cd python && uv run mypy .
+	@uv run --project python pre-commit run --all-files
 
 # Test targets
 .PHONY: test
 test:
 	@echo "Running core tests..."
-	@uv run pytest --ignore=tests/interactive --ignore=tests/performance --ignore=tests/integration
+	@cd python && uv run pytest --ignore=tests/interactive --ignore=tests/performance --ignore=tests/integration
 
 # Build Docker test image
 .PHONY: docker-test-build
@@ -55,12 +56,38 @@ test-integration: docker-test-build
 .PHONY: test-tools
 test-tools:
 	@echo "Running MCP tools tests..."
-	@uv run pytest tests/tools/
+	@cd python && uv run pytest tests/tools/
 
 .PHONY: test-performance
 test-performance: docker-test-build
 	@echo "Running performance tests (benchmarks, memory, stability)..."
 	@docker run --rm --init $(DOCKER_TEST_IMAGE) uv run pytest tests/performance/
+
+# TypeScript test targets (no Docker required - use bash/cat/echo from host)
+.PHONY: test-ts
+test-ts:
+	@echo "Running TypeScript unit tests..."
+	@cd typescript && npm run test
+
+.PHONY: golden
+golden:
+	@echo "Regenerating cross-implementation golden files..."
+	@cd python && uv run python tests/golden/generate_golden.py
+
+.PHONY: test-ts-integration
+test-ts-integration:
+	@echo "Running TypeScript integration tests..."
+	@cd typescript && npm run test:integration
+
+.PHONY: test-ts-performance
+test-ts-performance:
+	@echo "Running TypeScript performance tests..."
+	@cd typescript && npm run test:performance
+
+.PHONY: test-ts-all
+test-ts-all:
+	@echo "Running all TypeScript tests (unit + integration + performance)..."
+	@cd typescript && npm run test:all
 
 .PHONY: test-coverage
 test-coverage: docker-test-build
@@ -81,15 +108,16 @@ test-coverage: docker-test-build
 inspect:
 	@MCP_SERVER_REQUEST_TIMEOUT=$(MCP_SERVER_REQUEST_TIMEOUT) \
 		MCP_REQUEST_MAX_TOTAL_TIMEOUT=$(MCP_REQUEST_MAX_TOTAL_TIMEOUT) \
-		npx @modelcontextprotocol/inspector@0.19.0 uv run openroad-mcp
+		npx @modelcontextprotocol/inspector@0.19.0 uv run --project python openroad-mcp
 
 .PHONY: test-all
 test-all:
-	@echo "Running all tests (core + interactive + tools + integration)..."
+	@echo "Running all tests (python core + interactive + tools + integration, typescript)..."
 	@$(MAKE) test
 	@$(MAKE) test-interactive
 	@$(MAKE) test-tools
 	@$(MAKE) test-integration
+	@$(MAKE) test-ts-all
 
 # Print any Makefile variable: make print-IMAGE_NAME
 print-%:
