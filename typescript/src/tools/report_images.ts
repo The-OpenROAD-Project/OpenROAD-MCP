@@ -472,4 +472,3 @@ export class ReadReportImageTool extends BaseTool {
     }
   }
 }
-

@@ -43,4 +43,3 @@ jobs:
         run: docker build --progress=plain -f Dockerfile.ts --target runtime -t openroad-mcp-ts:ci .
       - name: Smoke-run entrypoint from built image
         run: docker run --rm openroad-mcp-ts:ci --help
-

@@ -256,10 +256,7 @@ def _canonical_type(prop: dict) -> str | None:
 def _canonical_tool(input_schema: dict, annotations: object) -> dict:
     props = input_schema.get("properties", {})
     required = set(input_schema.get("required", []))
-    params = {
-        name: {"type": _canonical_type(prop), "required": name in required}
-        for name, prop in props.items()
-    }
+    params = {name: {"type": _canonical_type(prop), "required": name in required} for name, prop in props.items()}
     hints = None
     if annotations is not None:
         hints = {

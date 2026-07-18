@@ -195,4 +195,3 @@ export const ReadImageResult = z.object({
   error: errorField,
 });
 export type ReadImageResult = z.infer<typeof ReadImageResult>;
-
