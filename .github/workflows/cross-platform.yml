@@ -34,11 +34,13 @@ jobs:
         run: bash scripts/setup-ubuntu.sh
 
       - name: Verify MCP server starts
+        working-directory: python
         run: |
           uv run openroad-mcp --help
           echo "✅ MCP server CLI verified on ${{ matrix.os }}"
 
       - name: Run tests (tools and integration)
+        working-directory: python
         run: uv run pytest tests/tools tests/integration -v
 
   macos:
@@ -53,9 +55,11 @@ jobs:
         run: bash scripts/setup-macos.sh
 
       - name: Verify MCP server starts (post-setup)
+        working-directory: python
         run: |
           uv run openroad-mcp --help
           echo "✅ MCP server CLI verified post-setup"
 
       - name: Run tests (tools only, skip PTY integration tests)
+        working-directory: python
         run: uv run pytest tests/tools -v

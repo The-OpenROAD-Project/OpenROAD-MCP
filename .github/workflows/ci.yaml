@@ -59,6 +59,7 @@ jobs:
 
     - name: Run host-PTY integration tests
       if: matrix.test-type == 'host-pty'
+      working-directory: python
       run: uv run pytest tests/integration ${{ matrix.pytest-args || '' }}
 
   nightly:

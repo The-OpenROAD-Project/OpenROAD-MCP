@@ -26,7 +26,7 @@ if ! command -v uv &>/dev/null; then
 fi
 
 echo "📦 Installing project dependencies..."
-uv sync --all-extras --inexact
+(cd python && uv sync --all-extras --inexact)
 
 echo ""
 echo "✅ Ubuntu setup complete!"
@@ -34,4 +34,4 @@ echo ""
 echo "Next steps:"
 echo "  1. Install OpenROAD: https://openroad.readthedocs.io/en/latest/main/GettingStarted.html"
 echo "  2. Run tests:        make test"
-echo "  3. Start MCP server: uv run openroad-mcp"
+echo "  3. Start MCP server: uv run --project python openroad-mcp"

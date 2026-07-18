@@ -1,0 +1,9 @@
+# Root config for Python files outside python/ (e.g. demo/).
+# Files under python/ resolve to python/pyproject.toml instead, which is the
+# source of truth for the server itself; keep line-length in sync with it.
+target-version = "py313"
+line-length = 120
+
+[format]
+quote-style = "double"
+indent-style = "space"

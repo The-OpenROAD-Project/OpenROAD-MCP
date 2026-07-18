@@ -26,8 +26,8 @@ export PATH="$HOME/.local/bin:$PATH"
 # Install OpenROAD (for integration tests)
 # See: https://openroad.readthedocs.io/en/latest/main/GettingStarted.html
 
-# Sync project
-uv sync --all-extras --inexact
+# Sync project (pyproject lives under python/)
+(cd python && uv sync --all-extras --inexact)
 make test
 ```
 

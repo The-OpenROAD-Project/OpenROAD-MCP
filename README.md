@@ -24,9 +24,10 @@ A Model Context Protocol (MCP) server that provides tools for interacting with O
   - [Installation guide](https://openroad.readthedocs.io/en/latest/main/GettingStarted.html)
 - **OpenROAD-flow-scripts (ORFS)** for complete RTL-to-GDS flows (optional but recommended)
   - [ORFS installation guide](https://openroad-flow-scripts.readthedocs.io/)
-- **Python 3.13+** or higher
-- **uv** package manager
-  - Install: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **A runtime for one of the two distributions:**
+  - **Node.js 22+** for the `npx` distribution (recommended — no extra install if you already have Node)
+  - **or Python 3.13+ and the `uv` package manager** for the `uvx` distribution
+    - Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
 ## Support Matrix
 
@@ -75,7 +76,23 @@ For platform-specific setup instructions, see the [Cross-Platform Guide](docs/CR
 
 ### Standard Configuration
 
-The basic configuration for all MCP clients:
+The server ships as two interchangeable distributions with identical tools and
+behavior. Pick the one that matches your installed runtime.
+
+**npx (Node.js 22+) — recommended:**
+
+```json
+{
+  "mcpServers": {
+    "openroad-mcp": {
+      "command": "npx",
+      "args": ["-y", "openroad-mcp"]
+    }
+  }
+}
+```
+
+**uvx (Python 3.13+ and uv):**
 
 ```json
 {
@@ -84,7 +101,7 @@ The basic configuration for all MCP clients:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ]
     }
@@ -92,9 +109,13 @@ The basic configuration for all MCP clients:
 }
 ```
 
-> **Note:** The URL above is pinned to a specific release for supply chain safety.
+> **Note:** The `uvx` URL above is pinned to a specific release for supply chain safety.
 > To always track the latest version instead, drop the `@v0.5.5` suffix:
-> `"git+https://github.com/The-OpenROAD-Project/openroad-mcp"`.
+> `"git+https://github.com/The-OpenROAD-Project/openroad-mcp#subdirectory=python"`.
+
+> **Every client example below uses `uvx`. To use the npx distribution instead,**
+> swap the `"command"`/`"args"` for the npx block above — the server name, tools,
+> and behavior are identical.
 
 For local development, use:
 
@@ -105,7 +126,7 @@ For local development, use:
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/openroad-mcp",
+        "/path/to/openroad-mcp/python",
         "run",
         "openroad-mcp"
       ]
@@ -120,7 +141,7 @@ For local development, use:
 <summary><b>Claude Code</b></summary>
 
 ```bash
-claude mcp add --transport stdio openroad-mcp -- uvx --from git+https://github.com/The-OpenROAD-Project/openroad-mcp openroad-mcp
+claude mcp add --transport stdio openroad-mcp -- uvx --from git+https://github.com/The-OpenROAD-Project/openroad-mcp#subdirectory=python openroad-mcp
 ```
 
 Or add the [standard configuration](#standard-configuration) to `.claude/settings.json`.
@@ -156,7 +177,7 @@ Add to `.vscode/mcp.json` (VS Code 1.99+). Note the different schema — `server
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ]
     }
@@ -195,7 +216,7 @@ Add to the Cline MCP settings file:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ],
       "disabled": false,
@@ -219,7 +240,7 @@ Add to `.roo/mcp.json` in your project root (or the equivalent user-level settin
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ],
       "disabled": false,
@@ -246,7 +267,7 @@ Add to `~/.continue/config.json`:
           "command": "uvx",
           "args": [
             "--from",
-            "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+            "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
             "openroad-mcp"
           ]
         }
@@ -271,7 +292,7 @@ Add to `~/.config/zed/settings.json`:
         "path": "uvx",
         "args": [
           "--from",
-          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
           "openroad-mcp"
         ]
       },
@@ -311,7 +332,7 @@ Add to your VS Code `settings.json` (User or Workspace scope):
         "command": "uvx",
         "args": [
           "--from",
-          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
           "openroad-mcp"
         ]
       }
@@ -328,7 +349,7 @@ Add to your VS Code `settings.json` (User or Workspace scope):
 Open **Settings → AI → MCP Servers → Add New MCP Server** and enter:
 - **Name**: `openroad-mcp`
 - **Command**: `uvx`
-- **Args**: `--from git+https://github.com/The-OpenROAD-Project/openroad-mcp openroad-mcp`
+- **Args**: `--from git+https://github.com/The-OpenROAD-Project/openroad-mcp#subdirectory=python openroad-mcp`
 
 </details>
 
@@ -336,7 +357,7 @@ Open **Settings → AI → MCP Servers → Add New MCP Server** and enter:
 <summary><b>Amp</b></summary>
 
 ```bash
-amp mcp add openroad-mcp uvx --from git+https://github.com/The-OpenROAD-Project/openroad-mcp openroad-mcp
+amp mcp add openroad-mcp uvx --from git+https://github.com/The-OpenROAD-Project/openroad-mcp#subdirectory=python openroad-mcp
 ```
 
 </details>
@@ -361,7 +382,7 @@ Add to `opencode.json` in your project root:
       "command": [
         "uvx",
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ],
       "enabled": true
@@ -391,7 +412,7 @@ Add to `.kilocode/mcp.json` in your project root:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ],
       "alwaysAllow": [],
@@ -416,7 +437,7 @@ extensions:
     cmd: uvx
     args:
       - --from
-      - git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5
+      - git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python
       - openroad-mcp
     enabled: true
 ```
@@ -438,7 +459,7 @@ Add to your VS Code `settings.json`:
           "command": "uvx",
           "args": [
             "--from",
-            "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+            "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
             "openroad-mcp"
           ]
         }
@@ -459,7 +480,7 @@ Add to `~/.codex/config.toml` (global) or `.codex/config.toml` (project-scoped):
 [[mcp_servers]]
 name = "openroad-mcp"
 command = "uvx"
-args = ["--from", "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5", "openroad-mcp"]
+args = ["--from", "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python", "openroad-mcp"]
 ```
 
 </details>
@@ -479,7 +500,7 @@ PearAI uses the same config format as Continue. Add to `~/pearai/config.json`:
           "command": "uvx",
           "args": [
             "--from",
-            "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+            "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
             "openroad-mcp"
           ]
         }
@@ -503,7 +524,7 @@ Add to `~/.codebuddy/config.jsonc` (global) or `.codebuddy/mcp.jsonc` (project-s
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ]
     }
@@ -525,7 +546,7 @@ mcp_servers:
     command: uvx
     args:
       - --from
-      - git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5
+      - git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python
       - openroad-mcp
 ```
 
@@ -544,7 +565,7 @@ Add to `~/.copilot/mcp-config.json`:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ]
     }
@@ -569,7 +590,7 @@ Add to `.omp/mcp.json` (project-level) or `~/.omp/agent/mcp.json` (global):
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ]
     }
@@ -592,7 +613,7 @@ Add to `~/.openclaw/openclaw.json`:
         "command": "uvx",
         "args": [
           "--from",
-          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
           "openroad-mcp"
         ],
         "enabled": true
@@ -614,7 +635,7 @@ Navigate to the AstrBot WebUI → **MCP** section → **Add Server**, and enter:
 ```json
 {
   "command": "uvx",
-  "args": ["--from", "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5", "openroad-mcp"]
+  "args": ["--from", "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python", "openroad-mcp"]
 }
 ```
 
@@ -636,7 +657,7 @@ Add to `deepcode_config.json` in your project root:
         "command": "uvx",
         "args": [
           "--from",
-          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+          "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
           "openroad-mcp"
         ]
       }
@@ -658,7 +679,7 @@ mcpServers:
     command: uvx
     args:
       - --from
-      - git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5
+      - git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python
       - openroad-mcp
 ```
 
@@ -677,7 +698,7 @@ Add to `.crush.json` (project-local) or `~/.config/crush/crush.json` (global):
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5",
+        "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python",
         "openroad-mcp"
       ]
     }
@@ -696,7 +717,7 @@ Add to `reasonix.toml` (project root) or `~/.config/reasonix/config.toml` (globa
 [[plugins]]
 name    = "openroad-mcp"
 command = "uvx"
-args    = ["--from", "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5", "openroad-mcp"]
+args    = ["--from", "git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.5.5#subdirectory=python", "openroad-mcp"]
 ```
 
 Alternatively, use the standard `.mcp.json` format — Reasonix auto-discovers it.
@@ -713,10 +734,11 @@ Alternatively, use the standard `.mcp.json` format — Reasonix auto-discovers i
 <details>
 <summary><b>MCP Registry</b></summary>
 
-Once published to the [MCP Registry](https://registry.modelcontextprotocol.io), clients can discover and install directly:
+Once published to the [MCP Registry](https://registry.modelcontextprotocol.io), clients can discover and install directly using either distribution:
 
 ```bash
-uvx openroad-mcp
+npx -y openroad-mcp   # Node.js 22+
+uvx openroad-mcp      # Python 3.13+ and uv
 ```
 
 </details>

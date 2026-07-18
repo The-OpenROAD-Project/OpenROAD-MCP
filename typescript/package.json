@@ -1,0 +1,66 @@
+{
+  "name": "openroad-mcp",
+  "version": "0.5.5",
+  "description": "OpenROAD MCP server (TypeScript/npx)",
+  "mcpName": "io.github.the-openroad-project/openroad-mcp",
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-OpenROAD-Project/openroad-mcp.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "openroad-mcp": "./dist/main.js"
+  },
+  "files": [
+    "dist/",
+    "scripts/fix-node-pty.cjs"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/fix-node-pty.cjs",
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "test:performance": "vitest run --config vitest.config.performance.ts",
+    "test:all": "npm run test && npm run test:integration && npm run test:performance",
+    "dev": "tsx src/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/pidusage": "^2.0.5",
+    "@types/sharp": "^0.31.1",
+    "@typescript-eslint/eslint-plugin": "^8.60.1",
+    "@typescript-eslint/parser": "^8.60.1",
+    "@vitest/coverage-v8": "^4.1.8",
+    "eslint": "^10.4.1",
+    "jiti": "^2.7.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "async-mutex": "^0.5.0",
+    "commander": "^15.0.0",
+    "denque": "^2.1.0",
+    "minimatch": "^10.2.5",
+    "node-pty": "^1.1.0",
+    "pidusage": "^4.0.1",
+    "pino": "^10.3.1",
+    "sharp": "^0.34.5",
+    "strip-ansi": "^7.2.0",
+    "zod": "^4.4.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.0": true,
+    "fsevents@2.3.3": true,
+    "node-pty@1.1.0": true,
+    "sharp@0.34.5": true
+  }
+}
