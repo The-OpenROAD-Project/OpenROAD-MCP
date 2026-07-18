@@ -183,10 +183,13 @@ Stage only the release-related files:
 git add CHANGELOG.md ROADMAP.md python/pyproject.toml server.json python/uv.lock README.md python/README.md
 ```
 
-Commit with the message:
+Commit under the `openroad-ci` bot identity (public org member — required so the
+MCP Registry OIDC check passes when the release workflow runs):
 
-```
-chore: release vX.Y.Z
+```bash
+git -c user.name="openroad-ci" \
+    -c user.email="54529053+openroad-ci@users.noreply.github.com" \
+    commit -m "chore: release vX.Y.Z"
 ```
 
 Then push to a dedicated release branch and open a PR:
@@ -211,10 +214,19 @@ EOF
 to @vvbandeira. Once the PR is open, report the PR URL to the user and stop — do not
 merge, squash, or tag.
 
+> **Tagging is automated.** When @vvbandeira squash-merges the release PR, the
+> `auto-tag.yml` workflow detects the `chore: release vX.Y.Z` commit message and
+> pushes the tag as `openroad-ci` using `OPENROAD_CI_PAT`. This ensures the
+> release workflow actor is a publicly visible org member, satisfying the MCP
+> Registry OIDC check. No manual tagging needed.
+
 ## Important details
 
 - **Never push to `main` directly.** Always use a `release/vX.Y.Z` branch and open a PR.
 - **@vvbandeira must review and merge** — request them as a reviewer on every release PR.
+- **`OPENROAD_CI_PAT` secret required** — this PAT must be stored in the repo settings
+  with `Contents: Read and write` scope. The `auto-tag.yml` workflow uses it to push
+  the release tag as `openroad-ci`, satisfying the MCP Registry org-membership check.
 - Always use `uv lock` to regenerate the lockfile rather than editing it manually
 - The CHANGELOG date format is ISO: `YYYY-MM-DD`
 - Version tags use a `v` prefix: `v0.4.0` (but the version in files has no prefix)
