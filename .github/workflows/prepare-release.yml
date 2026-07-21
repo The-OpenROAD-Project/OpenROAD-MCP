@@ -120,17 +120,56 @@ jobs:
         run: |
           OLD="${{ steps.version.outputs.current }}"
           NEW="${{ steps.version.outputs.new }}"
-          # Ignore lockfile noise and node_modules; check project version sources.
-          FOUND=$(grep -rn "${OLD}" \
-            --include="pyproject.toml" \
-            --include="package.json" \
-            --include="package-lock.json" \
-            --include="server.json" \
-            python/pyproject.toml typescript/package.json typescript/package-lock.json server.json \
-            2>/dev/null || true)
-          if [ -n "$FOUND" ]; then
-            echo "ERROR: old version ${OLD} still found after bump to ${NEW}:"
-            echo "$FOUND"
+          TAG="${{ steps.version.outputs.tag }}"
+          FAIL=0
+
+          check() {
+            # $1 = human label, $2 = actual, $3 = expected
+            if [ "$2" != "$3" ]; then
+              echo "ERROR: $1 is '$2', expected '$3'"
+              FAIL=1
+            fi
+          }
+
+          # Check exact version fields via jq/toml grep instead of a raw
+          # string search, so a dependency that happens to share the old
+          # version number (common in package-lock.json) can't false-positive.
+          check "python/pyproject.toml version" \
+            "$(grep -m1 '^version = ' python/pyproject.toml | sed 's/version = "\(.*\)"/\1/')" "$NEW"
+
+          check "typescript/package.json version" \
+            "$(jq -r '.version' typescript/package.json)" "$NEW"
+
+          check "typescript/package-lock.json .version" \
+            "$(jq -r '.version' typescript/package-lock.json)" "$NEW"
+
+          check "typescript/package-lock.json .packages[\"\"].version" \
+            "$(jq -r '.packages[""].version' typescript/package-lock.json)" "$NEW"
+
+          if [ -f server.json ]; then
+            check "server.json .version" "$(jq -r '.version' server.json)" "$NEW"
+            check "server.json .packages[].version" \
+              "$(jq -r '[.packages[].version] | unique | join(",")' server.json)" "$NEW"
+            check "server.json OCI identifier" \
+              "$(jq -r '.packages[] | select(.registryType=="oci") | .identifier' server.json)" \
+              "ghcr.io/the-openroad-project/openroad-mcp:${NEW}"
+          fi
+
+          check "python/uv.lock openroad-mcp version" \
+            "$(awk '/^name = "openroad-mcp"$/{getline; print; exit}' python/uv.lock | sed 's/^version = "\(.*\)"$/\1/')" "$NEW"
+
+          if grep -q "openroad-mcp\"" README.md python/README.md 2>/dev/null; then
+            echo "ERROR: bare (unpinned) openroad-mcp URL remains in README"
+            FAIL=1
+          fi
+          for f in README.md python/README.md; do
+            if grep -q "openroad-mcp@" "$f" && ! grep -q "openroad-mcp@${TAG}#subdirectory=python" "$f"; then
+              echo "ERROR: $f has a git+ URL not pinned to ${TAG}"
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
             exit 1
           fi
           echo "Version sources updated cleanly to ${NEW}."
@@ -168,7 +207,7 @@ jobs:
 
           Dual-distribution bump (Python/PyPI + TypeScript/npm).
 
-          See [CHANGELOG.md](CHANGELOG.md) for full details.
+          See [CHANGELOG.md](https://github.com/The-OpenROAD-Project/openroad-mcp/blob/${BRANCH}/CHANGELOG.md) for full details.
 
           /cc @vvbandeira — please review and merge when ready.
           EOF
