@@ -148,8 +148,9 @@ jobs:
 
           if [ -f server.json ]; then
             check "server.json .version" "$(jq -r '.version' server.json)" "$NEW"
+            # OCI packages use identifier (no .version); only check packages that declare version.
             check "server.json .packages[].version" \
-              "$(jq -r '[.packages[].version] | unique | join(",")' server.json)" "$NEW"
+              "$(jq -r '[.packages[] | select(.version != null) | .version] | unique | join(",")' server.json)" "$NEW"
             check "server.json OCI identifier" \
               "$(jq -r '.packages[] | select(.registryType=="oci") | .identifier' server.json)" \
               "ghcr.io/the-openroad-project/openroad-mcp:${NEW}"
@@ -158,13 +159,12 @@ jobs:
           check "python/uv.lock openroad-mcp version" \
             "$(awk '/^name = "openroad-mcp"$/{getline; print; exit}' python/uv.lock | sed 's/^version = "\(.*\)"$/\1/')" "$NEW"
 
-          if grep -q "openroad-mcp\"" README.md python/README.md 2>/dev/null; then
-            echo "ERROR: bare (unpinned) openroad-mcp URL remains in README"
-            FAIL=1
-          fi
+          # Fail on leftover wrong-version pins. Do not use a bare `openroad-mcp"`
+          # grep — that false-positives on JSON keys and npx args ("openroad-mcp":).
+          # Intentional unpinned "track latest" doc URLs are allowed.
           for f in README.md python/README.md; do
-            if grep -q "openroad-mcp@" "$f" && ! grep -q "openroad-mcp@${TAG}#subdirectory=python" "$f"; then
-              echo "ERROR: $f has a git+ URL not pinned to ${TAG}"
+            if grep -q "openroad-mcp@v" "$f" && ! grep -q "openroad-mcp@${TAG}#subdirectory=python" "$f"; then
+              echo "ERROR: $f has a git+ URL not pinned to ${TAG}#subdirectory=python"
               FAIL=1
             fi
           done
