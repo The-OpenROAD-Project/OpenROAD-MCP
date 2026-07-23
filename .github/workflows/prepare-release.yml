@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.OPENROAD_CI_PAT }}
           fetch-depth: 0
 
       - name: Install uv
@@ -196,7 +196,7 @@ jobs:
 
       - name: Open release PR
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.OPENROAD_CI_PAT }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           BRANCH="${{ steps.version.outputs.branch }}"
