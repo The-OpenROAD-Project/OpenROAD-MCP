@@ -218,7 +218,7 @@ merge, squash, or tag.
 
 > **Tagging is automated.** When @vvbandeira squash-merges the release PR, the
 > `auto-tag.yml` workflow detects the `chore: release vX.Y.Z` commit message and
-> pushes the tag as `openroad-ci` using `GH_PAT`. This ensures the
+> pushes the tag as `openroad-ci` using `OPENROAD_CI_PAT`. This ensures the
 > release workflow actor is a publicly visible org member, satisfying the MCP
 > Registry OIDC check. No manual tagging needed.
 
@@ -226,7 +226,7 @@ merge, squash, or tag.
 
 - **Never push to `main` directly.** Always use a `release/vX.Y.Z` branch and open a PR.
 - **@vvbandeira must review and merge** — request them as a reviewer on every release PR.
-- **`GH_PAT` secret required** — this PAT must be stored in the repo settings
+- **`OPENROAD_CI_PAT` secret required** — this PAT must be stored in the repo settings
   with `Contents: Read and write` scope (and Pull requests write for Prepare Release).
   The `auto-tag.yml` / `prepare-release.yml` workflows use it to push the release
   branch/tag as `openroad-ci`, satisfying the MCP Registry org-membership check.
