@@ -97,8 +97,13 @@ one breaks the release consistency.
 
 **python/pyproject.toml** — Update `version = "X.Y.Z"` in the `[project]` section.
 
-**server.json** — Update all three version references:
+**typescript/package.json** (+ lockfile) — Update the npm package version to match
+(e.g. `npm version --prefix typescript --no-git-tag-version X.Y.Z`). The
+TypeScript server reads its advertised MCP version from `package.json`.
+
+**server.json** — Update all version references:
 - Top-level `"version": "X.Y.Z"`
+- npm package `"version": "X.Y.Z"`
 - PyPI package `"version": "X.Y.Z"`
 - OCI identifier `"identifier": "ghcr.io/The-OpenROAD-Project/openroad-mcp:X.Y.Z"`
 
@@ -160,10 +165,6 @@ Today's date goes in the header. Add the link at the bottom:
 [X.Y.Z]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/vX.Y.Z
 ```
 
-**ROADMAP.md** — Find the "Version Milestones" table and add a new row for
-this release. Move any now-completed items from future milestones into this
-release's description.
-
 ### Step 5: Run tests
 
 Run the test suite to verify nothing is broken:
@@ -180,7 +181,8 @@ a broken release.
 Stage only the release-related files:
 
 ```bash
-git add CHANGELOG.md ROADMAP.md python/pyproject.toml server.json python/uv.lock README.md python/README.md
+git add CHANGELOG.md python/pyproject.toml server.json python/uv.lock \
+        README.md python/README.md typescript/package.json typescript/package-lock.json
 ```
 
 Commit under the `openroad-ci` bot identity (public org member — required so the
@@ -202,7 +204,7 @@ gh pr create \
   --body "$(cat <<'EOF'
 ## Release vX.Y.Z
 
-See [CHANGELOG.md](CHANGELOG.md) for full details.
+See [CHANGELOG.md](https://github.com/The-OpenROAD-Project/openroad-mcp/blob/release/vX.Y.Z/CHANGELOG.md) for full details.
 
 /cc @vvbandeira — please review and merge when ready.
 EOF
@@ -242,4 +244,3 @@ merge, squash, or tag.
   ```
   All occurrences should show the new `@vX.Y.Z` tag
 - If `server.json` doesn't exist, skip it (some repos may not have it)
-- If `ROADMAP.md` doesn't exist or has no version table, skip it
