@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-25
+
 ### Added
 - TypeScript/Node.js implementation published to npm, installable via `npx -y openroad-mcp` alongside the existing `uvx` distribution. Requires Node.js 22+.
 - Cross-implementation golden-file schema-parity tests (`python/tests/golden/`) asserting the TypeScript wire output and tool manifest match the Python contract.
@@ -136,3 +138,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.3.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.3.0
 [0.2.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.1.0
+[0.6.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.6.0
