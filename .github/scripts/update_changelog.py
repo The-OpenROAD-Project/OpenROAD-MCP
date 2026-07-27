@@ -58,7 +58,14 @@ content = preamble + "## [Unreleased]\n\n" + new_entry + "".join(remaining)
 
 link = f"[{new_version}]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/{new_tag}"
 if link not in content:
-    content = content.rstrip("\n") + f"\n{link}\n"
+    # Reference links are kept in descending-version order; since new_version
+    # is always the newest release, insert it above the existing block instead
+    # of appending at end-of-file.
+    match = re.search(r"^\[\d", content, flags=re.MULTILINE)
+    if match:
+        content = content[: match.start()] + link + "\n" + content[match.start() :]
+    else:
+        content = content.rstrip("\n") + f"\n{link}\n"
 
 changelog_path.write_text(content)
 print(f"Inserted {new_version} section into CHANGELOG.md")
