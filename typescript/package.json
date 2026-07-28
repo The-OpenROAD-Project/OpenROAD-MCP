@@ -13,7 +13,7 @@
     "node": ">=22"
   },
   "bin": {
-    "openroad-mcp": "./dist/main.js"
+    "openroad-mcp": "dist/main.js"
   },
   "files": [
     "dist/",
