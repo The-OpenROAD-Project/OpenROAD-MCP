@@ -11,6 +11,13 @@ from openroad_mcp.utils.logging import setup_logging
 
 def main() -> None:
     """Main application entry point."""
+    print(
+        "openroad-mcp: the Python/PyPI distribution is deprecated and will not "
+        "receive further releases. Switch to the npm distribution: "
+        "npx -y openroad-mcp. See "
+        "https://github.com/The-OpenROAD-Project/openroad-mcp/blob/main/README.md",
+        file=sys.stderr,
+    )
     try:
         # Parse command line arguments
         config = parse_cli_args()
