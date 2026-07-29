@@ -1,5 +1,4 @@
 {
-  "error": null,
   "image_data": "aGVsbG8=",
   "metadata": {
     "filename": "floorplan.webp",
@@ -16,5 +15,6 @@
     "original_height": 1536,
     "compression_ratio": 0.3125
   },
-  "message": null
+  "message": null,
+  "error": null
 }

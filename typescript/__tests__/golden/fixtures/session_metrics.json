@@ -1,18 +1,17 @@
 {
-  "error": null,
   "metrics": {
     "manager": {
       "total_sessions": 2,
       "active_sessions": 1,
       "terminated_sessions": 1,
       "max_sessions": 10,
-      "utilization_percent": 10.0
+      "utilization_percent": 10
     },
     "aggregate": {
       "total_commands": 4,
       "total_cpu_time": 1.5,
-      "total_memory_mb": 96.0,
-      "avg_memory_per_session": 96.0
+      "total_memory_mb": 96,
+      "avg_memory_per_session": 96
     },
     "sessions": [
       {
@@ -30,8 +29,8 @@
         },
         "performance": {
           "total_cpu_time": 1.5,
-          "peak_memory_mb": 128.0,
-          "current_memory_mb": 96.0
+          "peak_memory_mb": 128,
+          "current_memory_mb": 96
         },
         "buffer": {
           "current_size": 2048,
@@ -39,10 +38,11 @@
           "utilization_percent": 1.5625
         },
         "timeout": {
-          "configured_seconds": 300.0,
+          "configured_seconds": 300,
           "is_timed_out": false
         }
       }
     ]
-  }
+  },
+  "error": null
 }

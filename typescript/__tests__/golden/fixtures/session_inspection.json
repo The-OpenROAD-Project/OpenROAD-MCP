@@ -1,5 +1,4 @@
 {
-  "error": null,
   "session_id": "sess-0001",
   "metrics": {
     "session_id": "sess-0001",
@@ -16,8 +15,8 @@
     },
     "performance": {
       "total_cpu_time": 1.5,
-      "peak_memory_mb": 128.0,
-      "current_memory_mb": 96.0
+      "peak_memory_mb": 128,
+      "current_memory_mb": 96
     },
     "buffer": {
       "current_size": 2048,
@@ -25,8 +24,9 @@
       "utilization_percent": 1.5625
     },
     "timeout": {
-      "configured_seconds": 300.0,
+      "configured_seconds": 300,
       "is_timed_out": false
     }
-  }
+  },
+  "error": null
 }

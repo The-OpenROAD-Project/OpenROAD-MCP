@@ -1,7 +1,7 @@
 {
-  "error": null,
   "run_path": null,
   "total_images": null,
   "images_by_stage": null,
-  "message": "No images found"
+  "message": "No images found",
+  "error": null
 }

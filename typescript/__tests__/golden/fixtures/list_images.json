@@ -1,5 +1,4 @@
 {
-  "error": null,
   "run_path": "/reports/nangate45/gcd/base",
   "total_images": 2,
   "images_by_stage": {
@@ -22,5 +21,6 @@
       }
     ]
   },
-  "message": null
+  "message": null,
+  "error": null
 }
