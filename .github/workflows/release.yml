@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write  # for npm provenance
+      id-token: write  # for npm OIDC trusted publishing + provenance
     defaults:
       run:
         working-directory: typescript
@@ -82,6 +82,10 @@ jobs:
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false  # never use caching in release builds
+
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@^11.5.1
 
       - name: Set version from tag
         run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
@@ -102,8 +106,6 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     name: Create GitHub Release
