@@ -114,7 +114,7 @@ behavior. Pick the one that matches your installed runtime.
 > To always track the latest version instead, drop the `@v0.5.5` suffix:
 > `"git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.6.0#subdirectory=python"`.
 
-> **The `uvx` distribution below is deprecated** (final release — no
+> **The `uvx` distribution above is deprecated** (final release — no
 > further PyPI publishes). **Every client example below still uses `uvx`
 > for now; swap the `"command"`/`"args"` for the `npx` block above** to
 > use the actively maintained npm distribution instead — the server name,
