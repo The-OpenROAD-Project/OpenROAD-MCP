@@ -3,7 +3,8 @@
 > **Deprecated.** This Python/PyPI distribution is no longer maintained and
 > this is its final release. Please switch to the npm distribution:
 > `npx -y openroad-mcp`. See the
-> [main project README](../README.md) for setup instructions.
+> [main project README](https://github.com/The-OpenROAD-Project/openroad-mcp/blob/main/README.md)
+> for setup instructions.
 
 A Model Context Protocol (MCP) server that provides tools for interacting with
 OpenROAD and ORFS (OpenROAD Flow Scripts).
