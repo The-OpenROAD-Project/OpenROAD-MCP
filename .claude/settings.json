@@ -1,12 +1,8 @@
 {
   "mcpServers": {
     "openroad-mcp": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/The-OpenROAD-Project/openroad-mcp",
-        "openroad-mcp"
-      ]
+      "command": "npx",
+      "args": ["-y", "openroad-mcp"]
     }
   }
 }

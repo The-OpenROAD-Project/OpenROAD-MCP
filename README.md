@@ -26,7 +26,8 @@ A Model Context Protocol (MCP) server that provides tools for interacting with O
   - [ORFS installation guide](https://openroad-flow-scripts.readthedocs.io/)
 - **A runtime for one of the two distributions:**
   - **Node.js 22+** for the `npx` distribution (recommended — no extra install if you already have Node)
-  - **or Python 3.13+ and the `uv` package manager** for the `uvx` distribution
+  - **or Python 3.13+ and the `uv` package manager** for the `uvx`
+    distribution (deprecated — final release, see below)
     - Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
 ## Support Matrix
@@ -92,7 +93,7 @@ behavior. Pick the one that matches your installed runtime.
 }
 ```
 
-**uvx (Python 3.13+ and uv):**
+**uvx (Python 3.13+ and uv) — deprecated, final release:**
 
 ```json
 {
@@ -113,9 +114,11 @@ behavior. Pick the one that matches your installed runtime.
 > To always track the latest version instead, drop the `@v0.5.5` suffix:
 > `"git+https://github.com/The-OpenROAD-Project/openroad-mcp@v0.6.0#subdirectory=python"`.
 
-> **Every client example below uses `uvx`. To use the npx distribution instead,**
-> swap the `"command"`/`"args"` for the npx block above — the server name, tools,
-> and behavior are identical.
+> **The `uvx` distribution above is deprecated** (final release — no
+> further PyPI publishes). **Every client example below still uses `uvx`
+> for now; swap the `"command"`/`"args"` for the `npx` block above** to
+> use the actively maintained npm distribution instead — the server name,
+> tools, and behavior are identical.
 
 For local development, use:
 
