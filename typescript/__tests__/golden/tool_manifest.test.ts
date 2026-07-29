@@ -6,61 +6,30 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { goldenDir } from "./golden_dir.js";
 import { createMcpServer } from "../../src/server.js";
 import type { OpenROADManager } from "../../src/core/manager.js";
+import { canonicalTool, type JsonSchema } from "./fixture_helpers.js";
 
 // node-pty must never spawn during a list-tools check.
 vi.mock("node-pty", () => ({ spawn: vi.fn() }));
 
-// Cross-implementation tool-contract check (doc Section 4).
+// Tool-registration golden test.
 //
-// python/tests/golden/tool_manifest.json is generated from the Python FastMCP server
-// (generate_golden.py) and captures, per tool, the canonical param set
-// (name -> {type, required}) and the four annotation hints. Here we boot the
-// TypeScript server, read its own MCP tools/list output, normalize it the same
-// way, and assert an exact match. A renamed param, a flipped required flag, or
-// a changed readOnly/destructive/idempotent hint fails CI.
+// Boots the TypeScript MCP server in-memory, calls tools/list, normalizes
+// each tool entry with canonicalTool() (collapses zod schema noise to base
+// type + required flag), and asserts an exact match against the committed
+// fixtures/tool_manifest.json. A renamed param, a flipped required flag, or
+// a changed readOnly/destructive/idempotent annotation hint breaks this test.
 //
-// Normalization collapses the incidental schema differences between Pydantic
-// and zod (Pydantic's `anyOf: [{type}, {type: null}]` for optionals vs zod's
-// bare `{type}`, plus zod's min/max/$schema noise) down to the base type name.
+// To update the fixture after an intentional tool-registration change, run:
+//   make golden   (or: cd typescript && npm run generate:golden)
 
 const GOLDEN = path.join(goldenDir(), "tool_manifest.json");
-
-type JsonSchema = {
-  properties?: Record<string, { type?: string; anyOf?: { type?: string }[] }>;
-  required?: string[];
-};
-
-function canonicalType(prop: { type?: string; anyOf?: { type?: string }[] }): string | undefined {
-  if (prop.type) return prop.type;
-  if (prop.anyOf) return prop.anyOf.find((b) => b.type !== "null")?.type;
-  return undefined;
-}
-
-function canonicalTool(inputSchema: JsonSchema | undefined, annotations: Record<string, unknown> | undefined): unknown {
-  const props = inputSchema?.properties ?? {};
-  const required = new Set(inputSchema?.required ?? []);
-  const params: Record<string, { type: string | undefined; required: boolean }> = {};
-  for (const [name, prop] of Object.entries(props)) {
-    params[name] = { type: canonicalType(prop), required: required.has(name) };
-  }
-  const a = annotations ?? {};
-  return {
-    params,
-    annotations: {
-      readOnlyHint: a.readOnlyHint ?? null,
-      destructiveHint: a.destructiveHint ?? null,
-      idempotentHint: a.idempotentHint ?? null,
-      openWorldHint: a.openWorldHint ?? null,
-    },
-  };
-}
 
 function makeMockManager(): OpenROADManager {
   return { listSessions: vi.fn().mockResolvedValue([]) } as unknown as OpenROADManager;
 }
 
-describe("tool-manifest parity with the Python server", () => {
-  it("matches the golden tool manifest", async () => {
+describe("tool-manifest golden test", () => {
+  it("matches the committed golden tool_manifest.json", async () => {
     const server = createMcpServer(makeMockManager());
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await server.connect(st);
