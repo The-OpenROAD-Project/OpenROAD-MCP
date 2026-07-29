@@ -29,7 +29,8 @@
     "test:integration": "vitest run --config vitest.config.integration.ts",
     "test:performance": "vitest run --config vitest.config.performance.ts",
     "test:all": "npm run test && npm run test:integration && npm run test:performance",
-    "dev": "tsx src/main.ts"
+    "dev": "tsx src/main.ts",
+    "generate:golden": "tsx __tests__/golden/generate_golden.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.2",

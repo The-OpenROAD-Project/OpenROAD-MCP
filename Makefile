@@ -71,8 +71,8 @@ test-ts:
 
 .PHONY: golden
 golden:
-	@echo "Regenerating cross-implementation golden files..."
-	@cd python && uv run python tests/golden/generate_golden.py
+	@echo "Regenerating golden fixtures from TypeScript models..."
+	@cd typescript && npm run generate:golden
 
 .PHONY: test-ts-integration
 test-ts-integration:
