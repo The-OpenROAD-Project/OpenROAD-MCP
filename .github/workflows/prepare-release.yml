@@ -209,9 +209,9 @@ jobs:
 
           See [CHANGELOG.md](https://github.com/The-OpenROAD-Project/openroad-mcp/blob/${BRANCH}/CHANGELOG.md) for full details.
 
-          /cc @vvbandeira — please review and merge when ready.
+          /cc @vvbandeira @luarss — please review and merge when ready.
           EOF
           )" \
-            --reviewer vvbandeira \
+            --reviewer vvbandeira,luarss \
             --base main \
             --head "${BRANCH}"
