@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.the-openroad-project/openroad-mcp",
+  "name": "io.github.The-OpenROAD-Project/openroad-mcp",
   "description": "The OpenROAD MCP server - interactive EDA sessions via Model Context Protocol",
   "repository": {
     "url": "https://github.com/The-OpenROAD-Project/openroad-mcp",

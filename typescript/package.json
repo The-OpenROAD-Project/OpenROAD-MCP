@@ -2,7 +2,7 @@
   "name": "openroad-mcp",
   "version": "0.6.1",
   "description": "OpenROAD MCP server (TypeScript/npx)",
-  "mcpName": "io.github.the-openroad-project/openroad-mcp",
+  "mcpName": "io.github.The-OpenROAD-Project/openroad-mcp",
   "type": "module",
   "license": "BSD-3-Clause",
   "repository": {
