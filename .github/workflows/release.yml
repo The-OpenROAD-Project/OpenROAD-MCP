@@ -7,62 +7,36 @@ on:
 
 permissions:
   contents: write  # for creating GitHub Releases
-  id-token: write  # for PyPI trusted publishing
+  id-token: write  # for npm OIDC trusted publishing + GHCR + MCP Registry
   packages: write
 
 jobs:
   test:
     name: Run tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typescript
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Set up Node.js
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: typescript/package-lock.json
 
       - name: Install dependencies
-        run: make sync
+        run: npm ci
+
+      - name: Typecheck and lint
+        run: |
+          npm run typecheck
+          npm run lint
 
       - name: Run tests
-        run: make test
-
-      - name: Run checks
-        run: make check
-
-  build:
-    name: Build distribution
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-
-      - name: Build package
-        working-directory: python
-        run: uv build
-
-      - name: Upload dist artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: dist
-          path: python/dist/
-
-  publish-pypi:
-    name: Publish to PyPI
-    needs: build
-    runs-on: ubuntu-latest
-    environment: pypi1
-    steps:
-      - name: Download dist artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: dist
-          path: dist/
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        run: npm run test
 
   publish-npm:
     name: Publish to npm
@@ -109,7 +83,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: build
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -118,29 +92,21 @@ jobs:
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # Extract the section for this version from CHANGELOG.md
           NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md)
           echo "notes<<EOF" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Download dist artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: dist
-          path: dist/
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           body: ${{ steps.changelog.outputs.notes }}
-          files: dist/*
           draft: false
           prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
 
   publish-docker:
     name: Publish Docker image
-    needs: build
+    needs: test
     uses: ./.github/workflows/docker-publish.yml
     with:
       image_tag: ${{ github.ref_name }}
@@ -148,7 +114,7 @@ jobs:
 
   publish-mcp-registry:
     name: Publish to MCP Registry
-    needs: [publish-pypi, publish-npm, publish-docker]
+    needs: [publish-npm, publish-docker]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
