@@ -32,7 +32,7 @@ Built: Nov 20 2024
 
 **What happened:**
 - AI called `create_interactive_session()` to create a new session
-- AI called `interactive_openroad("openroad -version", session_id)` to run the command
+- AI called `interactive_openroad_query("version", session_id)` to run the command
 - You got immediate feedback without touching the command line
 
 ### Example 2: List Active Sessions
