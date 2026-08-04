@@ -1,181 +1,158 @@
 # Contributing to OpenROAD MCP
 
-Thank you for your interest in contributing to OpenROAD MCP! This document provides guidelines and instructions for contributing to the project.
+Thank you for contributing. This guide covers the TypeScript server, which is the active
+distribution. The Python package under `python/` is deprecated and no longer published; it is
+kept in the tree for reference only and will be removed in a future release.
 
-## Table of Contents
+---
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Workflow](#development-workflow)
-- [Code Standards](#code-standards)
-- [Testing](#testing)
-- [Submitting Changes](#submitting-changes)
-- [MCP-Specific Guidelines](#mcp-specific-guidelines)
+## Requirements
 
-## Code of Conduct
+- **Node.js 22+** (`node --version`)
+- **npm** (bundled with Node)
+- **OpenROAD** on your `PATH` for integration tests that spawn a real process
 
-We are committed to providing a welcoming and inclusive environment. Please be respectful and professional in all interactions.
+---
 
-## Getting Started
-
-### Prerequisites
-
-- Python 3.13 or higher
-- [uv](https://github.com/astral-sh/uv) package manager
-- OpenROAD installed on your system
-- Git for version control
-
-### Initial Setup
-
-1. Fork the repository on GitHub
-2. Clone your fork locally:
-   ```bash
-   git clone https://github.com/your-username/openroad-mcp.git
-   cd openroad-mcp
-   ```
-
-3. Set up the development environment:
-   ```bash
-   uv venv
-   make sync
-   ```
-
-4. Install pre-commit hooks:
-   ```bash
-   uv run pre-commit install
-   ```
-
-## Development Workflow
-
-### Development Process
-
-1. Create a new branch from `main`:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. Make your changes following our [Code Standards](#code-standards)
-
-3. Write tests for your changes
-
-4. Run the test suite:
-   ```bash
-   make test
-   ```
-
-5. Format and lint your code:
-   ```bash
-   make format
-   make check
-   ```
-
-6. Commit your changes with clear, descriptive commit messages
-
-## Testing
-
-### Test Structure
-
-- Unit tests in `python/tests/` for individual components
-- Integration tests in `python/tests/integration/` for full workflows
-- Interactive PTY tests in `python/tests/interactive/`
-- Performance tests in `python/tests/performance/`
-
-### Running Tests
+## Setting up the development environment
 
 ```bash
-make test                # Run core tests (recommended)
-make test-interactive    # Run PTY tests in Docker
-make test-integration    # Run integration tests
-make test-performance    # Run performance benchmarks
-make test-coverage       # Generate coverage reports
-make test-all           # Run all tests
+git clone https://github.com/The-OpenROAD-Project/openroad-mcp.git
+cd openroad-mcp/typescript
+npm install
+npm run build
 ```
 
-### Writing Tests
+---
 
-- Use pytest with async support
-- Write clear, focused test cases
-- Include both positive and negative test cases
-- Mock external dependencies when appropriate
-- Aim for high code coverage
+## Running the test suites
 
-## Submitting Changes
+There are three suites. Run them individually during development and together before opening a PR.
 
-### Pull Request Process
+```bash
+# Unit tests (fast, no OpenROAD required)
+npm run test
 
-1. Ensure all tests pass and code is formatted:
-   ```bash
-   make test
-   make check
-   ```
+# With coverage report
+npm run test:coverage
 
-2. Update documentation if needed
+# Integration tests (require OpenROAD on PATH)
+npm run test:integration
 
-3. Push your branch to your fork:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
+# Performance / memory benchmarks
+npm run test:performance
 
-4. Create a Pull Request on GitHub:
-   - Provide a clear title and description
-   - Reference any related issues or tickets
-   - Include test results if applicable
-   - Request review from maintainers
-
-### Pull Request Guidelines
-
-- Keep PRs focused on a single feature or fix
-- Include tests for new functionality
-- Update relevant documentation
-- Ensure CI checks pass
-- Respond to review feedback promptly
-
-### Commit Messages
-
-Write clear, descriptive commit messages:
-
-```
-Add timing checkpoint functionality
-
-- Implement checkpoint creation with delta compression
-- Add restore capability for timing data
-- Include tests for checkpoint/restore cycle
-
-Fixes #123
+# Everything at once
+npm run test:all
 ```
 
-## MCP-Specific Guidelines
+Tests use [vitest](https://vitest.dev/). Configuration is in `typescript/vitest.config.ts`.
 
-### Tool Implementation
+---
 
-All MCP tools should:
+## Type checking and linting
 
-1. Inherit from appropriate base classes
-2. Include comprehensive type hints
-3. Return structured results
-4. Handle errors gracefully
-5. Include clear docstrings
+```bash
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint
+```
 
-### Testing MCP Tools
+Both must pass before a PR can merge.
 
-Use the MCP Inspector for manual testing:
+---
+
+## Golden fixtures
+
+The files under `typescript/__tests__/golden/fixtures/` are the machine-readable wire contract
+for tool responses. They are committed to the repo. Whenever you change a result model, an input
+schema, or an annotation, regenerate them:
+
+```bash
+make golden
+```
+
+Then `git diff` to review the wire-level impact before committing. The CI `ts-check` job asserts
+no fixture drift.
+
+Golden fixtures were migrated to the TypeScript server in
+[#155](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/155). The generator
+is `typescript/__tests__/golden/generate_golden.ts`, invoked via `npm run generate:golden`.
+
+---
+
+## Making changes
+
+### Branch naming
+
+Use a short descriptive prefix:
+- `feat/` for new features
+- `fix/` for bug fixes
+- `docs/` for documentation
+- `ci/` for CI changes
+- `chore/` for maintenance
+
+### Commit messages
+
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) convention used by the
+project. The release changelog generator categorises commits by prefix:
+- `feat(...)` → Added
+- `fix(...)` → Fixed
+- `docs(...)`, `ci(...)`, `chore(...)`, `build(...)`, `test(...)` → Changed
+
+Example: `fix(whitelist): handle backslash-escaped verbs in compound statements`
+
+### Pull request checklist
+
+- [ ] `npm run typecheck` passes
+- [ ] `npm run lint` passes
+- [ ] `npm run test:all` passes
+- [ ] `make golden && git diff --exit-code typescript/__tests__/golden/fixtures/` is clean
+- [ ] New tools or schema changes are reflected in `docs/API.md`
+- [ ] Security-relevant changes (whitelist, path containment, env vars) are reflected in `docs/SECURITY.md`
+
+---
+
+## Project structure
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a full module map. The key directories are:
+
+```
+typescript/src/
+  config/    — CLI flags, settings, command whitelist
+  core/      — OpenROADManager, result models
+  interactive/ — Session, PTY handler, buffer
+  tools/     — MCP tool implementations
+  utils/     — ANSI decoder, path security, logging, cleanup
+```
+
+---
+
+## Documentation
+
+- **[docs/API.md](docs/API.md)** — reference for all 10 tools, params, response shapes
+- **[docs/SECURITY.md](docs/SECURITY.md)** — whitelist model, env vars, HTTP exposure
+- **[docs/TESTING.md](docs/TESTING.md)** — real-flow checklist for ORFS and AutoTuner comparison
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — module layout, data flow, session model
+
+---
+
+## MCP Inspector
+
+Useful for iterating on tools without a full MCP client:
 
 ```bash
 make inspect
 ```
 
-This launches the MCP Inspector UI for interactive testing of tools.
-
-## Additional Resources
-
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-- [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
-- [OpenROAD Documentation](https://openroad.readthedocs.io/)
+---
 
 ## License
 
-By contributing to OpenROAD MCP, you agree that your contributions will be licensed under the project's license (TBD).
+BSD 3-Clause. See [LICENSE](LICENSE).
 
 ---
 
-Thank you for contributing to OpenROAD MCP! Your efforts help make this project better for everyone.
+## Python package (deprecated)
+
+The `python/` directory contains the original Python/FastMCP implementation. It is no longer
+published to PyPI and is not maintained for new features. Do not add Python-specific code or tests.
