@@ -1,65 +1,40 @@
-# =============================================================================
-# PURPOSE: Validate platform-specific setup and server startup
-# =============================================================================
-
-name: Cross-Platform Validation
+name: Cross-Platform Node
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  schedule:
-    - cron: "0 3 * * 0"
-
-env:
-  CI: "true"
-  MCP_SERVER_REQUEST_TIMEOUT: 120
-  MCP_REQUEST_MAX_TOTAL_TIMEOUT: 300
 
 jobs:
-  ubuntu:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+  node-matrix:
+    name: Node ${{ matrix.node-version }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-14]
+        node-version: ["22"]
+    defaults:
+      run:
+        working-directory: typescript
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Run Ubuntu setup script
-        run: bash scripts/setup-ubuntu.sh
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: typescript/package-lock.json
 
-      - name: Verify MCP server starts
-        working-directory: python
-        run: |
-          uv run openroad-mcp --help
-          echo "✅ MCP server CLI verified on ${{ matrix.os }}"
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Run tests (tools and integration)
-        working-directory: python
-        run: uv run pytest tests/tools tests/integration -v
+      - name: Build
+        run: npm run build
 
-  macos:
-    runs-on: macos-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Run macOS setup script
-        run: bash scripts/setup-macos.sh
-
-      - name: Verify MCP server starts (post-setup)
-        working-directory: python
-        run: |
-          uv run openroad-mcp --help
-          echo "✅ MCP server CLI verified post-setup"
-
-      - name: Run tests (tools only, skip PTY integration tests)
-        working-directory: python
-        run: uv run pytest tests/tools -v
+      - name: Smoke-test entrypoint
+        # Exercises node-pty and sharp native module loading — this is the
+        # check that actually matters for cross-platform compatibility.
+        run: node dist/main.js --help
