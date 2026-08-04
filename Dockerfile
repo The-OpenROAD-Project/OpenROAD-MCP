@@ -61,7 +61,7 @@ COPY --from=prod-deps --chown=appuser:appuser /app/node_modules /app/node_module
 COPY --from=builder --chown=appuser:appuser /app/dist /app/dist
 COPY --chown=appuser:appuser typescript/package.json ./
 
-LABEL io.modelcontextprotocol.server.name="io.github.the-openroad-project/openroad-mcp"
+LABEL io.modelcontextprotocol.server.name="io.github.The-OpenROAD-Project/openroad-mcp"
 
 USER appuser
 

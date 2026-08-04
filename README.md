@@ -1,6 +1,6 @@
 # OpenROAD MCP Server
 
-<!-- mcp-name: io.github.the-openroad-project/openroad-mcp -->
+<!-- mcp-name: io.github.The-OpenROAD-Project/openroad-mcp -->
 
 A Model Context Protocol (MCP) server that provides tools for interacting with OpenROAD and ORFS (OpenROAD Flow Scripts).
 
