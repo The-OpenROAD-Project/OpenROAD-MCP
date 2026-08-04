@@ -3,10 +3,10 @@ name: TypeScript CI
 on:
   push:
     branches: [main, "feat/ts-migration**"]
-    paths: ["typescript/**", "Dockerfile.ts"]
+    paths: ["typescript/**", "Dockerfile"]
   pull_request:
     branches: [main, "feat/ts-migration**"]
-    paths: ["typescript/**", "Dockerfile.ts"]
+    paths: ["typescript/**", "Dockerfile"]
 
 jobs:
   # Host-side lint/unit/integration/perf. Does not use the Docker image —
@@ -33,13 +33,13 @@ jobs:
   # Packaging smoke check only: build the runtime image (which runs the
   # in-Dockerfile entrypoint / openroad / ORFS_FLOW_PATH RUNs) and invoke
   # --help from the resulting image. Independent of ts-check by design.
-  # Full in-image suites live in Dockerfile.ts `test` stage (local:
-  # docker build -f Dockerfile.ts --target test … && docker run …).
+  # Full in-image suites live in Dockerfile `test` stage (local:
+  # docker build -f Dockerfile --target test … && docker run …).
   ts-docker-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build TypeScript runtime image
-        run: docker build --progress=plain -f Dockerfile.ts --target runtime -t openroad-mcp-ts:ci .
+        run: docker build --progress=plain -f Dockerfile --target runtime -t openroad-mcp-ts:ci .
       - name: Smoke-run entrypoint from built image
         run: docker run --rm openroad-mcp-ts:ci --help
