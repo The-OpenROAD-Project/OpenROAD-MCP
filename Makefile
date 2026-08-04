@@ -57,9 +57,10 @@ golden:
 	@echo "Regenerating golden fixtures..."
 	@cd typescript && npm run generate:golden
 
-# MCP Inspector (stdio transport)
+# MCP Inspector (stdio transport). Depends on ts-build because dist/ is
+# gitignored and absent on a fresh checkout.
 .PHONY: inspect
-inspect:
+inspect: ts-build
 	@MCP_SERVER_REQUEST_TIMEOUT=$(MCP_SERVER_REQUEST_TIMEOUT) \
 		MCP_REQUEST_MAX_TOTAL_TIMEOUT=$(MCP_REQUEST_MAX_TOTAL_TIMEOUT) \
 		npx @modelcontextprotocol/inspector@0.19.0 \

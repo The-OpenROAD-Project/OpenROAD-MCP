@@ -138,9 +138,11 @@ typescript/src/
 
 ## MCP Inspector
 
-Useful for iterating on tools without a full MCP client:
+Useful for iterating on tools without a full MCP client. Run `make install` once
+first — `inspect` compiles via `ts-build`, which needs `typescript/node_modules`:
 
 ```bash
+make install   # first time only
 make inspect
 ```
 
