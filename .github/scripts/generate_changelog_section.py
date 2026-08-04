@@ -46,7 +46,9 @@ for line in log.splitlines():
         added.append(entry)
     elif re.match(r"fix(\(|:)", msg):
         fixed.append(entry)
-    elif re.match(r"(chore|build|ci|perf|refactor|docs|style|test)(\(|:)", msg):
+    else:
+        # Covers conventional-commit types (chore, ci, docs, …) as well as
+        # plain one-liner subjects that carry no conventional prefix at all.
         changed.append(entry)
 
 sections = []
