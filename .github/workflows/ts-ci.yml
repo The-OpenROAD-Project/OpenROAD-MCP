@@ -43,9 +43,10 @@ jobs:
       - run: npm run test:integration
 
       - name: Assert no golden fixture drift
+        # Pathspec is relative to the job's working-directory (typescript/).
         run: |
           npm run generate:golden
-          git diff --exit-code typescript/__tests__/golden/fixtures/
+          git diff --exit-code -- __tests__/golden/fixtures/
 
   ts-docker-build:
     name: Docker smoke test
