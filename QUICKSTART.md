@@ -1,147 +1,76 @@
-# Quick Start Guide
+# OpenROAD MCP – Quick Start Guide
 
-Get up and running with OpenROAD MCP in under 5 minutes! This guide assumes you've already [installed OpenROAD MCP](README.md#installation).
+Get to "it works" in under 5 minutes. This guide assumes you have already configured your MCP client according to the [Requirements & Installation](README.md#requirements--installation) instructions.
 
-> **Runtime:** OpenROAD MCP ships as two interchangeable distributions — `npx` (needs **Node.js 22+**, recommended) or `uvx` (needs **Python 3.13+** and `uv`, **deprecated** — final PyPI release, no further updates). Both expose the same tools; use `npx` unless you have a reason to stick with `uvx`. See [Standard Configuration](README.md#standard-configuration).
+## 1. The "It Works" Check
 
-## Verify Your Setup
+Before diving into physical design, verify your AI assistant is connected to the server.
 
-Check that OpenROAD MCP is loaded in your MCP client:
+**What to say:**
+> "Are your OpenROAD tools available and ready to use?"
 
-**Quick test:** Ask your AI assistant:
-> "Are OpenROAD tools available?"
+**What to expect:**
+The AI should acknowledge it has access to tools like `interactive_openroad_query`, `create_interactive_session`, and `read_report_image`.
 
-If the AI responds with information about OpenROAD MCP tools, you're ready! If not, see the [Installation](README.md#installation) section.
+*(If it says no, double-check your MCP client configuration and ensure `openroad` is in your `PATH`.)*
 
-## Your First Command (1 minute)
+## 2. Your First Command
 
-Let's start with the simplest possible interaction:
+Let's start by having the AI spin up an interactive OpenROAD session and run a simple command.
 
-### Example 1: Check OpenROAD Version
+**What to say:**
+> "Create a new OpenROAD session and tell me what version of OpenROAD we are running."
 
-**You say:**
-> "Create an OpenROAD session and show me the version"
+**What the AI will do:**
+1. Call `create_interactive_session()`
+2. Call `interactive_openroad_query("version")`
 
-**Expected response:**
-```
-✓ Created session: session-abc123
+**What to expect:**
+A short response directly in your chat:
+`OpenROAD v2.0-14023-g05f7f46af`
 
-OpenROAD v2.0-14023-g05f7f46af
-Built: Nov 20 2024
-```
+## 3. Real Design Analysis
 
-**What happened:**
-- AI called `create_interactive_session()` to create a new session
-- AI called `interactive_openroad_query("version", session_id)` to run the command
-- You got immediate feedback without touching the command line
+If you have OpenROAD-flow-scripts (ORFS) configured via `ORFS_FLOW_PATH`, you can ask the AI to load a real design and analyze it.
 
-### Example 2: List Active Sessions
+**What to say:**
+> "Load the nangate45 GCD design from ORFS and show me the worst setup slack."
 
-**You say:**
-> "Show me all active OpenROAD sessions"
-
-**Expected response:**
-```json
-{
-  "sessions": [
-    {
-      "session_id": "session-abc123",
-      "is_alive": true,
-      "command_count": 1,
-      "created_at": "2025-12-05T10:30:00"
-    }
-  ],
-  "total_count": 1,
-  "active_count": 1
-}
-```
-
-✅ **Success!** You've just run your first OpenROAD commands through AI assistance.
-
-## Try a Real Design Analysis (3 minutes)
-
-Now let's do something more interesting: analyze timing on a real design.
-
-### Option A: If You Have ORFS Installed
-
-If you have OpenROAD-flow-scripts with the GCD design built:
-
-**You say:**
-> "Load the nangate45 GCD design and show me timing analysis"
-
-**AI will execute:**
+**What the AI will do:**
+It will use `interactive_openroad_exec` to run a sequence of Tcl commands that load the technology and design:
 ```tcl
-# Load technology
-read_lef /path/to/ORFS/platforms/nangate45/lef/NangateOpenCellLibrary.tech.lef
-read_lef /path/to/ORFS/platforms/nangate45/lef/NangateOpenCellLibrary.macro.lef
-read_liberty /path/to/ORFS/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib
-
-# Load design
-read_verilog /path/to/ORFS/results/nangate45/gcd/base/1_synth.v
+read_lef /path/to/flow/platforms/nangate45/lef/NangateOpenCellLibrary.tech.lef
+read_lef /path/to/flow/platforms/nangate45/lef/NangateOpenCellLibrary.macro.lef
+read_liberty /path/to/flow/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib
+read_verilog /path/to/flow/results/nangate45/gcd/base/1_synth.v
 link_design gcd
-
-# Load constraints and analyze
-read_sdc /path/to/ORFS/results/nangate45/gcd/base/6_final.sdc
+read_sdc /path/to/flow/results/nangate45/gcd/base/6_final.sdc
 report_checks -digits 3
 ```
 
-**Expected output:**
-```
-Startpoint: dpath.a_reg.out[10]$_DFFE_PP_
-Endpoint: dpath.b_reg.out[10]$_DFFE_PP_
-Path Group: core_clock
-Path Type: max
+**What to expect:**
+A standard OpenROAD timing report detailing the startpoint, endpoint, and slack for the worst path, all without touching the terminal yourself.
 
-   Delay     Time   Description
------------------------------------------------------------
-   0.000    0.000   clock core_clock (rise edge)
-   ...
-            0.039   slack (MET)
-```
+## 4. Common Prompt Patterns
 
-### Option B: Simple Commands Without ORFS
-
-Don't have ORFS? Try these basic commands:
-
-**You say:**
-> "Create a clock named 'clk' with 10ns period"
-
-**AI executes:** `create_clock -name clk -period 10 [get_ports clk]`
-
-**You say:**
-> "Show me what clocks are defined"
-
-**AI executes:** `report_clocks`
-
-## Common Usage Patterns
-
-Now that you've run basic commands, here are common workflows:
+Here are some proven, plain-English prompts you can use to drive OpenROAD through your AI assistant.
 
 ### Session Management
+* **Start:** *"Create a new OpenROAD session named 'timing-debug'."*
+* **List:** *"Show me all my active OpenROAD sessions."*
+* **Cleanup:** *"Terminate all my OpenROAD sessions."*
 
-| What You Want | What You Say |
-|---------------|--------------|
-| Start a new session | "Create a new OpenROAD session" |
-| Start a named session | "Create a session called 'timing-debug'" |
-| See all sessions | "List all my OpenROAD sessions" |
-| Close a session | "Terminate session-abc123" or "Close my timing-debug session" |
-| Get session details | "Show me details for session-abc123" |
+### Timing & Power Analysis
+* **Slack:** *"What is the worst negative slack in the current design?"*
+* **Violations:** *"Show me the top 10 timing paths with setup violations."*
+* **Hold:** *"Are there any hold violations? If so, show me the worst one."*
+* **Power:** *"Run a power report and summarize the total internal vs switching power."*
 
-### Timing Analysis
+### Design Introspection
+* **Clocks:** *"What clocks are defined in this design, and what are their periods?"*
+* **Hierarchy:** *"How many macros and standard cell instances are in this design?"*
+* **Nets:** *"Find the net named 'clk' and tell me its fanout."*
 
-| What You Want | What You Say |
-|---------------|--------------|
-| Check overall timing | "What's the worst slack in this design?" |
-| Find violations | "Show me all paths with negative slack" |
-| Analyze specific path | "Show timing from register A to register B" |
-| Check setup vs hold | "Show me hold violations" |
-| Get top violators | "What are the 10 worst timing paths?" |
-
-### Design Information
-
-| What You Want | What You Say |
-|---------------|--------------|
-| Design statistics | "How many instances are in this design?" |
-| Clock information | "What clocks are defined?" |
-| Port information | "List all input ports" |
-| Net fanout | "What's the fanout of net XYZ?" |
+### ORFS Reports & Visuals
+* **List Images:** *"What report images are available for the 'gcd' design on 'nangate45'?"*
+* **View Congestion:** *"Show me the placement congestion report image for the GCD design."*

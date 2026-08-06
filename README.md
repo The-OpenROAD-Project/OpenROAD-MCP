@@ -6,6 +6,8 @@ A Model Context Protocol (MCP) server that provides tools for interacting with [
 
 ## About OpenROAD MCP
 
+**New here?** Check out the [Quick Start Guide](QUICKSTART.md) to get your AI assistant analyzing designs in 5 minutes.
+
 OpenROAD MCP eliminates the barrier between your AI assistant and physical design by connecting Claude, Cursor, and other MCP-compatible clients directly to the OpenROAD layout tools.
 
 OpenROAD is the leading open-source, foundational application for semiconductor digital design, delivering an Autonomous, No-Human-In-Loop (NHIL) flow from RTL-GDSII. OpenROAD-flow-scripts (ORFS) is the fully autonomous flow built around it.
