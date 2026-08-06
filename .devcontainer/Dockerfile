@@ -5,12 +5,9 @@ ENV TZ="$TZ"
 
 ARG CLAUDE_CODE_VERSION=latest
 
-# Install Node.js 20.x
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+# Install Node.js 22.x
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
   apt-get install -y nodejs
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install basic development tools and iptables/ipset
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -99,9 +96,9 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 # Clone and install openroad-mcp
 WORKDIR /workspace
 RUN git clone https://github.com/luarss/openroad-mcp.git
-WORKDIR /workspace/openroad-mcp
-RUN uv venv
-RUN uv pip install -e ./python
+WORKDIR /workspace/openroad-mcp/typescript
+RUN npm ci
+RUN npm run build
 
 # Copy and set up firewall script
 COPY init-firewall.sh /usr/local/bin/
