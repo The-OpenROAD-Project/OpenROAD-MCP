@@ -1,43 +1,40 @@
 # OpenROAD MCP — Security Model
 
-This document describes the security boundaries, access controls, and known exposure risks of the
-TypeScript MCP server. It covers the Tcl command whitelist, the PTY spawn allowlist, every
-environment variable that affects security-relevant behaviour, path containment for report images,
-and the HTTP transport's exposure surface.
+This document describes the security boundaries, access controls, and known exposure risks of the OpenROAD MCP server. It covers the Tcl command whitelist, the PTY spawn allowlist, every environment variable that affects security-relevant behaviour, path containment for report images, and the HTTP transport's exposure surface.
 
 ---
 
 ## Contents
 
-- [Tcl command whitelist](#tcl-command-whitelist)
-  - [Three-tier design](#three-tier-design)
-  - [query versus exec enforcement](#query-versus-exec-enforcement)
-  - [Compound statements and bracket substitution](#compound-statements-and-bracket-substitution)
-  - [Disabling the whitelist](#disabling-the-whitelist)
-- [PTY spawn allowlist](#pty-spawn-allowlist)
-- [Environment variable reference](#environment-variable-reference)
-- [Report image path containment](#report-image-path-containment)
-- [HTTP transport exposure](#http-transport-exposure)
-- [Exec is not a sandbox](#exec-is-not-a-sandbox)
+- [Tcl Command Whitelist](#tcl-command-whitelist)
+  - [Three-tier Design](#three-tier-design)
+  - [Query versus Exec Enforcement](#query-versus-exec-enforcement)
+  - [Compound Statements and Bracket Substitution](#compound-statements-and-bracket-substitution)
+  - [Disabling the Whitelist](#disabling-the-whitelist)
+- [PTY Spawn Allowlist](#pty-spawn-allowlist)
+- [Environment Variable Reference](#environment-variable-reference)
+- [Report Image Path Containment](#report-image-path-containment)
+- [HTTP Transport Exposure](#http-transport-exposure)
+- [Exec is Not a Sandbox](#exec-is-not-a-sandbox)
 
 ---
 
-## Tcl command whitelist
+## Tcl Command Whitelist
 
 The whitelist is implemented in
 [`typescript/src/config/command_whitelist.ts`](../typescript/src/config/command_whitelist.ts). It
 guards **Tcl statements** sent to the OpenROAD REPL, not the shell binary (that is the PTY spawn
 allowlist below).
 
-### Three-tier design
+### Three-tier Design
 
 **Tier 1 — `BLOCKED_COMMANDS` (denied in both tools)**
 
 These are OS-level Tcl built-ins that can escape the EDA context regardless of OpenROAD's
 own access controls.
 
-| command | reason blocked |
-|---|---|
+| Command | Reason Blocked |
+|---------|----------------|
 | `quit` | terminates the OpenROAD process |
 | `socket` | opens arbitrary network connections |
 | `load` | loads compiled C extensions into the interpreter |
@@ -76,14 +73,14 @@ Safe Tcl built-ins: `puts`, `set`, `expr`, `return`, `break`, `continue`, `list`
 **Unknown commands** are treated as exec-only: denied in query, allowed in exec. They will fail at
 the Tcl level inside OpenROAD if they are not valid commands.
 
-### query versus exec enforcement
+### Query versus Exec Enforcement
 
-| | `interactive_openroad_query` | `interactive_openroad_exec` |
-|---|---|---|
-| Default policy | **deny** (only READONLY_PATTERNS pass) | **allow** (only BLOCKED_COMMANDS fail) |
-| Exec-only verbs | rejected | allowed |
-| Unknown verbs | rejected (treated as exec-only) | allowed |
-| Blocked verbs | rejected | rejected |
+| Context | `interactive_openroad_query` | `interactive_openroad_exec` |
+|---------|------------------------------|-----------------------------|
+| **Default policy** | **deny** (only READONLY_PATTERNS pass) | **allow** (only BLOCKED_COMMANDS fail) |
+| **Exec-only verbs** | rejected | allowed |
+| **Unknown verbs** | rejected (treated as exec-only) | allowed |
+| **Blocked verbs** | rejected | rejected |
 
 When a command is rejected the tool returns a JSON response — no exception is thrown to the
 client:
@@ -101,7 +98,7 @@ client:
 }
 ```
 
-### Compound statements and bracket substitution
+### Compound Statements and Bracket Substitution
 
 The whitelist parses multi-statement input before checking:
 
@@ -119,7 +116,7 @@ The whitelist parses multi-statement input before checking:
 - **Comments** (lines starting with `#` and blank lines, including any brackets inside them) are
   skipped entirely.
 
-### Disabling the whitelist
+### Disabling the Whitelist
 
 Set `OPENROAD_WHITELIST_ENABLED=false` to skip all Tcl checks. Intended for trusted development
 environments where the full ORFS Tcl API is needed without restriction. Never expose an
@@ -127,7 +124,7 @@ unwhitelisted server over HTTP without additional access controls.
 
 ---
 
-## PTY spawn allowlist
+## PTY Spawn Allowlist
 
 A separate layer in
 [`typescript/src/interactive/pty_handler.ts`](../typescript/src/interactive/pty_handler.ts)
@@ -150,33 +147,32 @@ Set `OPENROAD_ENABLE_COMMAND_VALIDATION=false` to skip spawn validation entirely
 
 ---
 
-## Environment variable reference
+## Environment Variable Reference
 
-All variables are read at startup by
-[`typescript/src/config/settings.ts`](../typescript/src/config/settings.ts).
+All variables are read at startup by [`typescript/src/config/settings.ts`](../typescript/src/config/settings.ts).
 
-| variable | type | default | what it gates |
-|---|---|---|---|
+| Variable | Type | Default | What it gates |
+|----------|------|---------|---------------|
 | `OPENROAD_COMMAND_TIMEOUT` | float (seconds) | `30.0` | Per-command timeout; override per-call with `timeout_ms` |
-| `OPENROAD_COMMAND_COMPLETION_DELAY` | float (seconds) | `0.1` | Parsed but not currently wired to runtime; `session.ts` uses a hardcoded constant |
+| `OPENROAD_COMMAND_COMPLETION_DELAY` | float (seconds) | `0.1` | Delay before declaring command completion. |
 | `OPENROAD_DEFAULT_BUFFER_SIZE` | integer (bytes) | `131072` (128 KiB) | Circular output buffer max size per session |
 | `OPENROAD_MAX_SESSIONS` | integer | `50` | Maximum concurrent active sessions |
 | `OPENROAD_SESSION_QUEUE_SIZE` | integer | `128` | Maximum pending commands in input queue |
-| `OPENROAD_SESSION_IDLE_TIMEOUT` | float (seconds) | `300.0` | Idle threshold reported by `inspect_interactive_session`; does **not** trigger automatic cleanup — see [Session lifecycle notes](API.md#session-lifecycle-notes) |
-| `OPENROAD_READ_CHUNK_SIZE` | integer (bytes) | `8192` | Max chunk size when splitting large PTY onData bursts |
-| `OPENROAD_ALLOWED_COMMANDS` | comma-separated strings | `openroad` | PTY spawn executable allowlist |
+| `OPENROAD_SESSION_IDLE_TIMEOUT` | float (seconds) | `300.0` | Idle threshold; does **not** trigger automatic cleanup (see [Session Lifecycle Notes](API.md#session-lifecycle-notes)) |
+| `OPENROAD_READ_CHUNK_SIZE` | integer (bytes) | `8192` | Max chunk size when splitting large PTY bursts |
+| `OPENROAD_ALLOWED_COMMANDS` | string (comma-separated) | `openroad` | PTY spawn executable allowlist |
 | `OPENROAD_ENABLE_COMMAND_VALIDATION` | bool | `true` | Enables/disables `PtyHandler.validateCommand` |
 | `OPENROAD_WHITELIST_ENABLED` | bool | `true` | Enables/disables the Tcl command whitelist |
-| `ORFS_FLOW_PATH` | path | `~/OpenROAD-flow-scripts/flow` | Root for ORFS platforms/designs/reports; tilde-expanded at runtime |
+| `ORFS_FLOW_PATH` | path | `~/OpenROAD-flow-scripts/flow` | Root for ORFS reports; tilde-expanded at runtime |
 | `LOG_LEVEL` | string | `INFO` | Root pino logger level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
-| `LOG_FORMAT` | string | (Python format string) | Stored but unused; logging uses pino with a fixed JSON format |
+| `LOG_FORMAT` | string | (N/A) | Unused; logging uses pino with a fixed JSON format |
 
 CLI flags `--verbose` and `--log-level` override `LOG_LEVEL` after the settings are initialised.
 No other CLI flag overrides a Settings field.
 
 ---
 
-## Report image path containment
+## Report Image Path Containment
 
 Report images are served from:
 
@@ -188,7 +184,7 @@ The containment enforcement in
 [`typescript/src/utils/path_security.ts`](../typescript/src/utils/path_security.ts) works in
 two layers:
 
-**Layer 1 — segment validation** (applied to `run_slug` and `image_name` independently):
+**Layer 1 — Segment Validation** (applied to `run_slug` and `image_name` independently):
 
 - Empty or whitespace-only value → rejected
 - `.` or `..` → rejected
@@ -196,7 +192,7 @@ two layers:
 - Contains null byte `\x00` → rejected
 - Contains glob characters `* ? [ ]` → rejected
 
-**Layer 2 — realpath containment** (applied after joining paths):
+**Layer 2 — Realpath Containment** (applied after joining paths):
 
 The resolved real path (via `realpathSync`, with a walk-up for non-existent suffixes) must be
 under the base directory. A symlink that points outside the base is caught here.
@@ -220,7 +216,7 @@ Recognised stems: `cts_clk`, `cts_clk_layout`, `cts_core_clock`, `cts_core_clock
 
 ---
 
-## HTTP transport exposure
+## HTTP Transport Exposure
 
 Start the server with `--transport http` (default `localhost:8000`) to expose it over Streamable
 HTTP instead of stdio.
@@ -241,7 +237,7 @@ Practical guidance:
 
 ---
 
-## Exec is not a sandbox
+## Exec is Not a Sandbox
 
 The whitelist is a guardrail against accidental misuse by AI agents, **not a security sandbox**.
 It prevents the most obvious footguns (`quit`, network, `eval`-style injection) but it does not:

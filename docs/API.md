@@ -16,9 +16,9 @@ make golden
 
 ## Contents
 
-- [Wire format conventions](#wire-format-conventions)
-- [Error conventions](#error-conventions)
-- [Session tools](#session-tools)
+- [Wire Format Conventions](#wire-format-conventions)
+- [Error Conventions](#error-conventions)
+- [Session Tools](#session-tools)
   - [interactive_openroad_query](#interactive_openroad_query)
   - [interactive_openroad_exec](#interactive_openroad_exec)
   - [create_interactive_session](#create_interactive_session)
@@ -27,14 +27,14 @@ make golden
   - [inspect_interactive_session](#inspect_interactive_session)
   - [get_session_history](#get_session_history)
   - [get_session_metrics](#get_session_metrics)
-- [Report image tools](#report-image-tools)
+- [Report Image Tools](#report-image-tools)
   - [list_report_images](#list_report_images)
   - [read_report_image](#read_report_image)
-- [Session lifecycle notes](#session-lifecycle-notes)
+- [Session Lifecycle Notes](#session-lifecycle-notes)
 
 ---
 
-## Wire format conventions
+## Wire Format Conventions
 
 All tool responses carry a single MCP content item of type `"text"` whose `text` field is a JSON
 string. **All JSON keys are snake_case** — the server converts camelCase models at the boundary
@@ -50,9 +50,9 @@ Every result type has a nullable `error` field:
 
 ---
 
-## Error conventions
+## Error Conventions
 
-### Normal errors
+### Normal Errors
 
 All tools return a JSON object. On failure the `error` field is non-null and the rest of the
 payload is either zero-valued or `null`. Example (blocked command):
@@ -73,14 +73,14 @@ payload is either zero-valued or `null`. Example (blocked command):
 The `message` field is present **only** on blocked-command responses; it contains the human-readable
 explanation alongside the machine-readable `error` code.
 
-### Image-tool error codes
+### Image-tool Error Codes
 
 `list_report_images` and `read_report_image` use structured error codes in the `error` field:
 
 | Code | Meaning |
-|---|---|
+|------|---------|
 | `ValidationError` | Bad `platform`, `design`, path traversal attempt, or empty segment |
-| `RunNotFound` | The run directory `{ORFS_FLOW_PATH}/reports/{platform}/{design}/{run_slug}` does not exist |
+| `RunNotFound` | The run directory does not exist |
 | `InvalidImageName` | `image_name` does not end in `.webp` |
 | `ImageNotFound` | The named file is not present in the run directory |
 | `NotAFile` | The path exists but is not a regular file |
@@ -89,7 +89,7 @@ explanation alongside the machine-readable `error` code.
 
 ---
 
-## Session tools
+## Session Tools
 
 ### `interactive_openroad_query`
 
@@ -98,13 +98,17 @@ Execute a **read-only** OpenROAD command. The whitelist is default-deny: only `R
 accepted. Everything else is rejected with `CommandBlocked`. See [SECURITY.md](SECURITY.md) for
 full whitelist details.
 
-| param | type | required | default |
-|---|---|---|---|
-| `command` | string | yes | — |
-| `session_id` | string | no | a new session is created |
-| `timeout_ms` | integer | no | `30000` (from `OPENROAD_COMMAND_TIMEOUT`) |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `command` | string | **yes** | — |
+| `session_id` | string | no | (auto-generates new session) |
+| `timeout_ms` | integer | no | `30000` (`OPENROAD_COMMAND_TIMEOUT`) |
 
-**Annotations:** `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: true`
+- `destructiveHint: false`
+- `idempotentHint: false`
+- `openWorldHint: false`
 
 **Response shape** (`interactive_exec_result_success.json`):
 
@@ -120,10 +124,10 @@ full whitelist details.
 }
 ```
 
-| field | meaning |
-|---|---|
+| Field | Meaning |
+|-------|---------|
 | `output` | Everything OpenROAD wrote for this command, ANSI-stripped |
-| `session_id` | The session used — the auto-created one when you passed none |
+| `session_id` | The session used (auto-created if none was passed) |
 | `execution_time` | Seconds spent on this command |
 | `command_count` | Commands executed in this session so far |
 | `buffer_size` | Current output-buffer occupancy in bytes |
@@ -141,13 +145,17 @@ Execute a **state-modifying** OpenROAD command. The whitelist is default-allow: 
 `after`, `subst`) are rejected. Read-only commands such as `report_wns` are also accepted here —
 use `interactive_openroad_query` when you want to keep state changes visible and auditable.
 
-| param | type | required | default |
-|---|---|---|---|
-| `command` | string | yes | — |
-| `session_id` | string | no | a new session is created |
-| `timeout_ms` | integer | no | `30000` (from `OPENROAD_COMMAND_TIMEOUT`) |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `command` | string | **yes** | — |
+| `session_id` | string | no | (auto-generates new session) |
+| `timeout_ms` | integer | no | `30000` (`OPENROAD_COMMAND_TIMEOUT`) |
 
-**Annotations:** `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: false`
+- `destructiveHint: true`
+- `idempotentHint: false`
+- `openWorldHint: false`
 
 The response shape is identical to `interactive_openroad_query`. Long-running flow commands
 routinely exceed 30 s — pass a larger `timeout_ms` for placement, CTS, and routing.
@@ -159,14 +167,18 @@ routinely exceed 30 s — pass a larger `timeout_ms` for placement, CTS, and rou
 Create a session explicitly so you control its identifier, command, environment, and working
 directory. Use this before a long flow to capture the `session_id` without running a first command.
 
-| param | type | required | default |
-|---|---|---|---|
-| `session_id` | string | no | random 8-character hex id |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `session_id` | string | no | random 8-char hex ID |
 | `command` | string[] | no | `["openroad", "-no_init"]` |
-| `env` | object (string→string) | no | inherits the server's environment |
-| `cwd` | string | no | server's working directory |
+| `env` | object | no | inherits server env |
+| `cwd` | string | no | inherits server cwd |
 
-**Annotations:** `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: false`
+- `destructiveHint: false`
+- `idempotentHint: false`
+- `openWorldHint: false`
 
 **Response shape** (`interactive_session_info_success.json`):
 
@@ -191,12 +203,16 @@ directory. Use this before a long flow to capture the `session_id` without runni
 
 Terminate a session. Sends SIGTERM; if `force` is true sends SIGKILL immediately.
 
-| param | type | required | default |
-|---|---|---|---|
-| `session_id` | string | yes | — |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `session_id` | string | **yes** | — |
 | `force` | boolean | no | `false` |
 
-**Annotations:** `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: true`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: false`
+- `destructiveHint: true`
+- `idempotentHint: true`
+- `openWorldHint: false`
 
 **Response shape** (`session_termination.json`):
 
@@ -218,7 +234,11 @@ List all sessions known to the server, both active and recently terminated.
 
 No parameters.
 
-**Annotations:** `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: true`
+- `destructiveHint: false`
+- `idempotentHint: true`
+- `openWorldHint: false`
 
 **Response shape** (`interactive_session_list.json`):
 
@@ -259,11 +279,15 @@ No parameters.
 Return detailed metrics for a single session: buffer utilisation, memory, CPU time, idle
 seconds, and history length.
 
-| param | type | required | default |
-|---|---|---|---|
-| `session_id` | string | yes | — |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `session_id` | string | **yes** | — |
 
-**Annotations:** `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: true`
+- `destructiveHint: false`
+- `idempotentHint: true`
+- `openWorldHint: false`
 
 **Response shape** (`session_inspection.json`):
 
@@ -308,13 +332,17 @@ seconds, and history length.
 
 Retrieve the command history for a session, with optional limit and search filter.
 
-| param | type | required | default |
-|---|---|---|---|
-| `session_id` | string | yes | — |
-| `limit` | integer | no | returns all (up to 1000 kept internally) |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `session_id` | string | **yes** | — |
+| `limit` | integer | no | returns all (up to 1000) |
 | `search` | string | no | no filter |
 
-**Annotations:** `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: true`
+- `destructiveHint: false`
+- `idempotentHint: true`
+- `openWorldHint: false`
 
 **Response shape** (`session_history.json`):
 
@@ -347,7 +375,11 @@ and per-session summaries.
 
 No parameters.
 
-**Annotations:** `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: true`
+- `destructiveHint: false`
+- `idempotentHint: true`
+- `openWorldHint: false`
 
 **Response shape** (`session_metrics.json`):
 
@@ -375,25 +407,29 @@ No parameters.
 
 ---
 
-## Report image tools
+## Report Image Tools
 
 ### `list_report_images`
 
 List `.webp` report images produced by an ORFS run, grouped by pipeline stage. Requires
 `ORFS_FLOW_PATH` to point at your ORFS `flow/` directory.
 
-| param | type | required | default |
-|---|---|---|---|
-| `platform` | string | yes | — |
-| `design` | string | yes | — |
-| `run_slug` | string | yes | — |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `platform` | string | **yes** | — |
+| `design` | string | **yes** | — |
+| `run_slug` | string | **yes** | — |
 | `stage` | string | no | `"all"` |
 
 `platform` and `design` are validated against subdirectories discovered under
 `{ORFS_FLOW_PATH}/platforms/` and `{ORFS_FLOW_PATH}/designs/{platform}/`. `run_slug` may not
 contain path separators, `..`, or glob characters.
 
-**Annotations:** `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: true`
+- `destructiveHint: false`
+- `idempotentHint: true`
+- `openWorldHint: false`
 
 **Response shape** (`list_images.json`):
 
@@ -431,16 +467,20 @@ Read a single `.webp` image and return its base64-encoded data with metadata. Im
 than 15 KB (base64) are automatically downscaled using sharp (lanczos3, WebP quality 85) before
 encoding. The 50 MB on-disk limit is enforced before any resizing.
 
-| param | type | required | default |
-|---|---|---|---|
-| `platform` | string | yes | — |
-| `design` | string | yes | — |
-| `run_slug` | string | yes | — |
-| `image_name` | string | yes | — |
+| Parameter | Type | Required | Default |
+|-----------|------|----------|---------|
+| `platform` | string | **yes** | — |
+| `design` | string | **yes** | — |
+| `run_slug` | string | **yes** | — |
+| `image_name` | string | **yes** | — |
 
 `image_name` must end in `.webp` and may not contain path separators or traversal sequences.
 
-**Annotations:** `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`
+**Annotations:**
+- `readOnlyHint: true`
+- `destructiveHint: false`
+- `idempotentHint: true`
+- `openWorldHint: false`
 
 **Response shape** (`read_image.json`):
 
@@ -483,19 +523,19 @@ when the original exceeded 15 KB (base64).
 
 ---
 
-## Session lifecycle notes
+## Session Lifecycle Notes
 
 ### Limits
 
-| limit | default | environment variable |
-|---|---|---|
+| Limit | Default | Environment Variable |
+|-------|---------|----------------------|
 | Max concurrent sessions | 50 | `OPENROAD_MAX_SESSIONS` |
 | Output buffer per session | 128 KiB | `OPENROAD_DEFAULT_BUFFER_SIZE` |
 | Command history per session | 1000 entries | (constant) |
 | Default command timeout | 30 s | `OPENROAD_COMMAND_TIMEOUT` |
 | Input queue depth | 128 commands | `OPENROAD_SESSION_QUEUE_SIZE` |
 
-### Idle session accumulation
+### Idle Session Accumulation
 
 Idle sessions are **not automatically reaped**. The `cleanupIdleSessions` function exists in the
 manager but no scheduler calls it in production. Sessions persist until manually terminated, the

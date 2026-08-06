@@ -6,7 +6,7 @@ A Model Context Protocol (MCP) server that provides tools for interacting with [
 
 ## About OpenROAD MCP
 
-**New here?** Check out the [Quick Start Guide](QUICKSTART.md) to get your AI assistant analyzing designs in 5 minutes.
+**New here?** Check out the [Quick Start Guide](docs/QUICKSTART.md) to get your AI assistant analyzing designs in 5 minutes.
 
 OpenROAD MCP eliminates the barrier between your AI assistant and physical design by connecting Claude, Cursor, and other MCP-compatible clients directly to the OpenROAD layout tools.
 
@@ -29,8 +29,7 @@ With this MCP server, your AI assistant can:
 To use this MCP server, you need the server runtime, plus the underlying OpenROAD layout tools.
 
 ### 1. Server Runtime
-- **Node.js 22+** is required to run the `npx` distribution (recommended).
-*(Note: The `uvx` Python distribution is deprecated; this is its final release. All instructions below use `npx`.)*
+- **Node.js 22+** is required to run the `npx` distribution.
 
 ### 2. OpenROAD
 **OpenROAD** must be installed and available in your `PATH`.
@@ -41,6 +40,8 @@ To use this MCP server, you need the server runtime, plus the underlying OpenROA
 - [Official ORFS Local Build Guide](https://openroad-flow-scripts.readthedocs.io/en/latest/user/BuildLocally.html)
 
 ## Configuration
+
+For platform-specific Node.js and C++ toolchain setup instructions, see the **[Cross-Platform Build Guide](docs/CROSS_PLATFORM.md)**.
 
 Before configuring your MCP client, you must provide the server with your local paths to OpenROAD and ORFS.
 
@@ -167,7 +168,7 @@ Most other standard STDIO clients are fully supported. Refer to your tool's MCP 
 
 ## Available Tools
 
-Once configured, your AI assistant will have access to the following tools:
+Once configured, your AI assistant will have access to the following tools. For detailed parameters, schemas, and return formats, see the **[API Reference](docs/API.md)**.
 
 - `interactive_openroad_query`
 - `interactive_openroad_exec`

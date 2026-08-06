@@ -1,7 +1,8 @@
 # Cross-Platform Guide — OpenROAD MCP
 
-The server runs on **Ubuntu 22.04+**, **Ubuntu 24.04**, and **macOS 14+**. This guide covers
-Node.js setup, native module build requirements, and known platform-specific issues.
+The server runs on **Ubuntu 22.04+**, **Ubuntu 24.04**, and **macOS 14+**. Because this MCP server depends on native C++ modules (`node-pty` for terminal sessions and `sharp` for image processing), you must have a C++ toolchain installed to build it from source.
+
+This guide covers Node.js setup, native module build requirements, and known platform-specific issues.
 
 ---
 
@@ -25,15 +26,15 @@ sudo apt-get install -y nodejs
 node --version   # should print v22.x.x
 ```
 
-### Build requirements for native modules
+### Build Requirements
 
-`node-pty` and `sharp` compile native C++ code at `npm ci`. Install the toolchain first:
+`node-pty` and `sharp` compile native C++ code during `npm ci`. Install the toolchain first:
 
 ```bash
 sudo apt-get install -y build-essential python3 libvips-dev
 ```
 
-### Run the server
+### Run the Server
 
 ```bash
 npx -y openroad-mcp --help
@@ -52,50 +53,44 @@ nvm install 22 && nvm use 22
 node --version
 ```
 
-### Build requirements
+### Build Requirements
 
-Xcode Command Line Tools provide the compiler. Install them once:
+Xcode Command Line Tools provide the necessary C++ compiler. Install them once:
 
 ```bash
 xcode-select --install
 ```
 
-`sharp` uses libvips. On Apple Silicon it builds from source; on Intel a pre-built binary is
-usually available. Both work with Node 22.
+*Note: `sharp` uses libvips. On Apple Silicon it builds from source; on Intel a pre-built binary is usually available. Both work with Node 22.*
 
-### Known issues
+### Known Issues
 
-| issue | workaround |
-|---|---|
-| OpenROAD is not on `PATH` after Homebrew install | Add `/opt/homebrew/bin` to your shell's `PATH`, or set `OPENROAD_ALLOWED_COMMANDS=openroad` and use the full path in your session `command` array |
+| Issue | Workaround |
+|-------|------------|
+| OpenROAD is not on `PATH` after Homebrew install | Add `/opt/homebrew/bin` to your shell's `PATH`, or set `OPENROAD_ALLOWED_COMMANDS=openroad` and use the full path in your session config. |
 | `node-pty` rebuild fails after a Node upgrade | `cd typescript && npm rebuild` |
 | `sharp` fails with "dyld: Library not loaded" | `cd typescript && npm rebuild --update-binary` |
 
 ---
 
-## Docker (all platforms, no local OpenROAD needed)
+## Docker (All Platforms)
 
-The GHCR image includes OpenROAD and does not require it on the host:
+If you don't want to install Node.js, C++ toolchains, or OpenROAD locally, you can use the official Docker image.
 
 ```bash
 docker run --rm -i ghcr.io/the-openroad-project/openroad-mcp:latest --help
 ```
 
-MCP client config:
-
+**MCP Client Config:**
 ```json
 {
-  "mcpServers": {
-    "openroad-mcp": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i", "ghcr.io/the-openroad-project/openroad-mcp:latest"]
-    }
-  }
+  "command": "docker",
+  "args": ["run", "--rm", "-i", "ghcr.io/the-openroad-project/openroad-mcp:latest"]
 }
 ```
 
-Mount your ORFS flow directory to use report image tools:
-
+**Using ORFS with Docker:**
+To use report image tools, mount your local ORFS flow directory:
 ```bash
 docker run --rm -i \
   -v /your/orfs/flow:/flow:ro \
@@ -105,17 +100,9 @@ docker run --rm -i \
 
 ---
 
-## Cross-platform CI
+## Troubleshooting Native Modules
 
-The `cross-platform.yml` workflow validates the server on ubuntu-22.04, ubuntu-24.04, and
-macos-14 on every push. It runs `npm ci`, `npm run build`, and `node dist/main.js --help` — the
-checks that exercise native module compilation.
-
----
-
-## Troubleshooting native modules
-
-`node-pty` and `sharp` are the two native dependencies. If either fails to load:
+If `node-pty` or `sharp` fail to load at runtime (often caused by upgrading Node.js after installing the server), rebuild them:
 
 ```bash
 cd typescript
@@ -123,5 +110,4 @@ npm rebuild          # recompile against the current Node version
 node dist/main.js --help   # smoke-check
 ```
 
-If `npm rebuild` itself fails, check that the build toolchain is installed (see platform sections
-above) and that Node matches the version in the error message.
+If `npm rebuild` fails, verify your build toolchain is installed (see platform sections above) and that your Node version matches the one in the error message.

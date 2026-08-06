@@ -1,5 +1,7 @@
 # OpenROAD MCP — Real-Flow Testing Checklist
 
+**STATUS: ⚠️ PENDING** *(To be completed before v1.0.0 release)*
+
 This document is an executable checklist for manually verifying end-to-end correctness of the
 OpenROAD MCP server against real ORFS flows. Complete it before tagging any v1.0+ release.
 
@@ -29,12 +31,12 @@ The sections below require a machine with OpenROAD and ORFS installed.
 
 | # | action | expected | observed |
 |---|---|---|---|
-| 1.1 | `npx -y openroad-mcp` starts with stdio transport | server starts, writes JSON-RPC init to stdout | |
-| 1.2 | `docker run --rm -i ghcr.io/the-openroad-project/openroad-mcp:latest --help` | exits 0, prints usage | |
-| 1.3 | Call `create_interactive_session` with no args | returns `session_id`, `state: "active"`, `is_alive: true` | |
-| 1.4 | Call `list_interactive_sessions` | lists the session created in 1.3 | |
-| 1.5 | Call `terminate_interactive_session` with the id | returns `terminated: true` | |
-| 1.6 | Call `get_session_metrics` | `active_sessions: 0`, `terminated_sessions: 1` | |
+| 1.1 | `npx -y openroad-mcp` starts with stdio transport | server starts, writes JSON-RPC init to stdout | PENDING |
+| 1.2 | `docker run --rm -i ghcr.io/the-openroad-project/openroad-mcp:latest --help` | exits 0, prints usage | PENDING |
+| 1.3 | Call `create_interactive_session` with no args | returns `session_id`, `state: "active"`, `is_alive: true` | PENDING |
+| 1.4 | Call `list_interactive_sessions` | lists the session created in 1.3 | PENDING |
+| 1.5 | Call `terminate_interactive_session` with the id | returns `terminated: true` | PENDING |
+| 1.6 | Call `get_session_metrics` | `active_sessions: 0`, `terminated_sessions: 1` | PENDING |
 
 ---
 
@@ -42,12 +44,12 @@ The sections below require a machine with OpenROAD and ORFS installed.
 
 | # | command | expected | observed |
 |---|---|---|---|
-| 2.1 | `interactive_openroad_query("version")` | `output` contains OpenROAD version string, `error: null` | |
-| 2.2 | `interactive_openroad_query("help")` | `output` contains help text | |
-| 2.3 | `interactive_openroad_query("set_wire_rc -layer metal3")` | `error: "CommandBlocked: 'set_wire_rc'"` | |
-| 2.4 | `interactive_openroad_query("source my.tcl")` | `error: "CommandBlocked: 'source'"` | |
-| 2.5 | `interactive_openroad_query("exit")` | `error: "CommandBlocked: 'exit'"` | |
-| 2.6 | `interactive_openroad_query("exec ls")` | `error: "CommandBlocked: 'exec'"` | |
+| 2.1 | `interactive_openroad_query("version")` | `output` contains OpenROAD version string, `error: null` | PENDING |
+| 2.2 | `interactive_openroad_query("help")` | `output` contains help text | PENDING |
+| 2.3 | `interactive_openroad_query("set_wire_rc -layer metal3")` | `error: "CommandBlocked: 'set_wire_rc'"` | PENDING |
+| 2.4 | `interactive_openroad_query("source my.tcl")` | `error: "CommandBlocked: 'source'"` | PENDING |
+| 2.5 | `interactive_openroad_query("exit")` | `error: "CommandBlocked: 'exit'"` | PENDING |
+| 2.6 | `interactive_openroad_query("exec ls")` | `error: "CommandBlocked: 'exec'"` | PENDING |
 
 ---
 
@@ -57,15 +59,15 @@ Use the GCD (`gcd`) design on `nangate45` — included in every ORFS install.
 
 | # | action | expected | observed |
 |---|---|---|---|
-| 3.1 | Create session with `cwd` pointing at ORFS flow dir | `state: "active"` | |
-| 3.2 | `interactive_openroad_exec("source designs/nangate45/gcd/config.mk")` | `error: null` (or harmless Tcl output) | |
-| 3.3 | `interactive_openroad_exec("read_lef platforms/nangate45/lef/NangateOpenCellLibrary.tech.lef")` | `error: null` | |
-| 3.4 | `interactive_openroad_exec("read_lef platforms/nangate45/lef/NangateOpenCellLibrary.macro.lef")` | `error: null` | |
-| 3.5 | `interactive_openroad_exec("read_verilog <path/to/gcd.v>")` | `error: null`, `output` includes "Reading design" | |
-| 3.6 | `interactive_openroad_exec("initialize_floorplan -utilization 30 -aspect_ratio 1.0 -core_space 2.0")` | `error: null`, floor plan created | |
-| 3.7 | `interactive_openroad_query("report_design_area")` | `error: null`, `output` contains area values | |
-| 3.8 | Session accumulates commands — check `inspect_interactive_session` | `commands.current_count` increments each call | |
-| 3.9 | Long-running `global_placement` with `timeout_ms: 120000` | completes without timeout error | |
+| 3.1 | Create session with `cwd` pointing at ORFS flow dir | `state: "active"` | PENDING |
+| 3.2 | `interactive_openroad_exec("source designs/nangate45/gcd/config.mk")` | `error: null` (or harmless Tcl output) | PENDING |
+| 3.3 | `interactive_openroad_exec("read_lef platforms/nangate45/lef/NangateOpenCellLibrary.tech.lef")` | `error: null` | PENDING |
+| 3.4 | `interactive_openroad_exec("read_lef platforms/nangate45/lef/NangateOpenCellLibrary.macro.lef")` | `error: null` | PENDING |
+| 3.5 | `interactive_openroad_exec("read_verilog <path/to/gcd.v>")` | `error: null`, `output` includes "Reading design" | PENDING |
+| 3.6 | `interactive_openroad_exec("initialize_floorplan -utilization 30 -aspect_ratio 1.0 -core_space 2.0")` | `error: null`, floor plan created | PENDING |
+| 3.7 | `interactive_openroad_query("report_design_area")` | `error: null`, `output` contains area values | PENDING |
+| 3.8 | Session accumulates commands — check `inspect_interactive_session` | `commands.current_count` increments each call | PENDING |
+| 3.9 | Long-running `global_placement` with `timeout_ms: 120000` | completes without timeout error | PENDING |
 
 ---
 
@@ -76,12 +78,12 @@ placement and routing images under `flow/reports/nangate45/gcd/<run_slug>/`.
 
 | # | action | expected | observed |
 |---|---|---|---|
-| 4.1 | `list_report_images(platform, design, run_slug)` | `total_images > 0`, no error | |
-| 4.2 | `list_report_images(platform, design, run_slug, stage: "3_place")` | only placement images listed | |
-| 4.3 | `read_report_image(platform, design, run_slug, "3_place_gp_overlay.webp")` | `image_data` is non-empty base64, `error: null` | |
-| 4.4 | `read_report_image` on a >50 MB image | `error: "FileTooLarge"` | |
-| 4.5 | `read_report_image` with traversal: `image_name: "../../../etc/passwd.webp"` | `error: "ValidationError"` | |
-| 4.6 | `list_report_images` with non-existent run_slug | `error: "RunNotFound"` | |
+| 4.1 | `list_report_images(platform, design, run_slug)` | `total_images > 0`, no error | PENDING |
+| 4.2 | `list_report_images(platform, design, run_slug, stage: "3_place")` | only placement images listed | PENDING |
+| 4.3 | `read_report_image(platform, design, run_slug, "3_place_gp_overlay.webp")` | `image_data` is non-empty base64, `error: null` | PENDING |
+| 4.4 | `read_report_image` on a >50 MB image | `error: "FileTooLarge"` | PENDING |
+| 4.5 | `read_report_image` with traversal: `image_name: "../../../etc/passwd.webp"` | `error: "ValidationError"` | PENDING |
+| 4.6 | `list_report_images` with non-existent run_slug | `error: "RunNotFound"` | PENDING |
 
 ---
 
@@ -89,9 +91,9 @@ placement and routing images under `flow/reports/nangate45/gcd/<run_slug>/`.
 
 | # | action | expected | observed |
 |---|---|---|---|
-| 5.1 | Create 51 sessions without terminating any | 51st returns `error: "session limit reached"` | |
-| 5.2 | `get_session_metrics` after 50 active sessions | `utilization_percent: 100` | |
-| 5.3 | Terminate 10 sessions, then create 10 new ones | all succeed | |
+| 5.1 | Create 51 sessions without terminating any | 51st returns `error: "session limit reached"` | PENDING |
+| 5.2 | `get_session_metrics` after 50 active sessions | `utilization_percent: 100` | PENDING |
+| 5.3 | Terminate 10 sessions, then create 10 new ones | all succeed | PENDING |
 
 ---
 
@@ -103,10 +105,10 @@ npx -y openroad-mcp --transport http --port 8555 &
 
 | # | action | expected | observed |
 |---|---|---|---|
-| 6.1 | Send a `tools/list` request to `http://localhost:8555/mcp` | returns all 10 tools | |
-| 6.2 | `interactive_openroad_query("version")` via HTTP | same response as stdio | |
-| 6.3 | Two consecutive HTTP requests with the same `session_id` | second call sees history from first | |
-| 6.4 | Oversized body (>1 MB) | HTTP 400 | |
+| 6.1 | Send a `tools/list` request to `http://localhost:8555/mcp` | returns all 10 tools | PENDING |
+| 6.2 | `interactive_openroad_query("version")` via HTTP | same response as stdio | PENDING |
+| 6.3 | Two consecutive HTTP requests with the same `session_id` | second call sees history from first | PENDING |
+| 6.4 | Oversized body (>1 MB) | HTTP 400 | PENDING |
 
 ---
 
@@ -115,19 +117,19 @@ npx -y openroad-mcp --transport http --port 8555 &
 This section compares MCP-assisted parameter tuning against
 [ORFS AutoTuner](https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts/tree/master/flow/util/autotuner).
 
-Coordinate with Chaitanya for baseline runs and scoring methodology. Fill in observed values from
+
 `.orfs-eval-logs/`.
 
 | metric | AutoTuner baseline | MCP-assisted | delta |
 |---|---|---|---|
-| ibex — WNS after CTS (ns) | | | |
-| ibex — TNS after CTS (ns) | | | |
-| ibex — total runtime (min) | | | |
-| aes — WNS after CTS (ns) | | | |
-| aes — TNS after CTS (ns) | | | |
-| aes — total runtime (min) | | | |
-| gcd — WNS after CTS (ns) | | | |
-| gcd — total runtime (min) | | | |
+| ibex — WNS after CTS (ns) | PENDING | PENDING | PENDING |
+| ibex — TNS after CTS (ns) | PENDING | PENDING | PENDING |
+| ibex — total runtime (min) | PENDING | PENDING | PENDING |
+| aes — WNS after CTS (ns) | PENDING | PENDING | PENDING |
+| aes — TNS after CTS (ns) | PENDING | PENDING | PENDING |
+| aes — total runtime (min) | PENDING | PENDING | PENDING |
+| gcd — WNS after CTS (ns) | PENDING | PENDING | PENDING |
+| gcd — total runtime (min) | PENDING | PENDING | PENDING |
 
 **Notes on methodology:**
 

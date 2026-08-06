@@ -1,21 +1,44 @@
 # Contributing to OpenROAD MCP
 
-Thank you for contributing. This guide covers the TypeScript server, which is the active
-distribution. The Python package under `python/` is deprecated and no longer published; it is
-kept in the tree for reference only and will be removed in a future release.
+Thank you for contributing! This guide covers the OpenROAD MCP server.
+
+## Review Priorities
+
+Reviews are prioritized in this order:
+
+### 1. Correctness & Security
+Code must execute safely and securely.
+- **Whitelist integrity:** Ensure any new Tcl commands are safely handled and do not bypass the command whitelist (`docs/SECURITY.md`).
+- **Path traversal:** Avoid any possibility of reading outside `ORFS_FLOW_PATH` for report images.
+- **Session management:** Ensure sessions properly clean up resources (PTYs) and don't leak memory on shutdown.
+
+### 2. Protocol Adherence (Wire Contract)
+The server must adhere strictly to the Model Context Protocol.
+- **Golden Fixtures:** Any change to tool responses or inputs must be verified using `make golden`. The CI asserts no fixture drift to prevent breaking the wire contract.
+- Tool schemas must accurately describe parameters so AI agents know how to call them.
+
+### 3. Testing
+Every code change should have accompanying tests.
+- Unit tests for stateless logic.
+- Integration tests for changes involving the OpenROAD subprocess or PTYs.
+- Run `npm run test:all` to verify before PR submission.
+
+### 4. Code Style & Quality
+We enforce standard formatting and types.
+- Types must strictly define the domain. Avoid `any`.
+- Keep the `OpenROADManager` decoupled from MCP transports.
+- Run `npm run typecheck` and `npm run lint` before committing.
 
 ---
 
-## Requirements
+## Development Setup
 
-- **Node.js 22+** (`node --version`)
+**Requirements:**
+- **Node.js 22+**
 - **npm** (bundled with Node)
-- **OpenROAD** on your `PATH` for integration tests that spawn a real process
+- **OpenROAD** on your `PATH` for integration tests
 
----
-
-## Setting up the development environment
-
+**Getting Started:**
 ```bash
 git clone https://github.com/The-OpenROAD-Project/openroad-mcp.git
 cd openroad-mcp/typescript
@@ -23,67 +46,24 @@ npm install
 npm run build
 ```
 
----
+## Running Tests
 
-## Running the test suites
-
-There are three suites. Run them individually during development and together before opening a PR.
+Run these individually during development and together before opening a PR:
 
 ```bash
-# Unit tests (fast, no OpenROAD required)
-npm run test
-
-# With coverage report
-npm run test:coverage
-
-# Integration tests (require OpenROAD on PATH)
-npm run test:integration
-
-# Performance / memory benchmarks
-npm run test:performance
-
-# Everything at once
-npm run test:all
+npm run test             # Unit tests (fast, no OpenROAD required)
+npm run test:integration # Integration tests (require OpenROAD on PATH)
+npm run test:performance # Performance / memory benchmarks
+npm run test:all         # Run everything
 ```
 
-Tests use [vitest](https://vitest.dev/). Configuration is in `typescript/vitest.config.ts`.
+*(Tests use [vitest](https://vitest.dev/). Configuration is in `typescript/vitest.config.ts`.)*
 
 ---
 
-## Type checking and linting
+## Making Changes
 
-```bash
-npm run typecheck    # tsc --noEmit
-npm run lint         # eslint
-```
-
-Both must pass before a PR can merge.
-
----
-
-## Golden fixtures
-
-The files under `typescript/__tests__/golden/fixtures/` are the machine-readable wire contract
-for tool responses. They are committed to the repo. Whenever you change a result model, an input
-schema, or an annotation, regenerate them:
-
-```bash
-make golden
-```
-
-Then `git diff` to review the wire-level impact before committing. The CI `ts-check` job asserts
-no fixture drift.
-
-Golden fixtures were migrated to the TypeScript server in
-[#155](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/155). The generator
-is `typescript/__tests__/golden/generate_golden.ts`, invoked via `npm run generate:golden`.
-
----
-
-## Making changes
-
-### Branch naming
-
+### Branch Naming
 Use a short descriptive prefix:
 - `feat/` for new features
 - `fix/` for bug fixes
@@ -91,70 +71,48 @@ Use a short descriptive prefix:
 - `ci/` for CI changes
 - `chore/` for maintenance
 
-### Commit messages
-
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) convention used by the
-project. The release changelog generator categorises commits by prefix:
+### Commit Messages
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) convention. The release changelog generator categorizes commits by prefix:
 - `feat(...)` → Added
 - `fix(...)` → Fixed
 - `docs(...)`, `ci(...)`, `chore(...)`, `build(...)`, `test(...)` → Changed
 
-Example: `fix(whitelist): handle backslash-escaped verbs in compound statements`
+*Example:* `fix(whitelist): handle backslash-escaped verbs in compound statements`
 
-### Pull request checklist
-
-- [ ] `npm run typecheck` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run test:all` passes
-- [ ] `make golden && git diff --exit-code typescript/__tests__/golden/fixtures/` is clean
-- [ ] New tools or schema changes are reflected in `docs/API.md`
-- [ ] Security-relevant changes (whitelist, path containment, env vars) are reflected in `docs/SECURITY.md`
+### Pull Request Checklist
+- [ ] `npm run typecheck` and `npm run lint` pass.
+- [ ] `npm run test:all` passes.
+- [ ] `make golden` is run and `git diff` is clean (no unexpected fixture drift).
+- [ ] New tools or schema changes are reflected in `docs/API.md`.
+- [ ] Security-relevant changes are reflected in `docs/SECURITY.md`.
 
 ---
 
-## Project structure
+## Project Structure
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a full module map. The key directories are:
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a full module map. Key directories under `typescript/src/`:
 
-```
-typescript/src/
-  config/    — CLI flags, settings, command whitelist
-  core/      — OpenROADManager, result models
-  interactive/ — Session, PTY handler, buffer
-  tools/     — MCP tool implementations
-  utils/     — ANSI decoder, path security, logging, cleanup
-```
+- `config/` — CLI flags, settings, command whitelist
+- `core/` — `OpenROADManager`, result models
+- `interactive/` — Session management, PTY handler, circular buffer
+- `tools/` — MCP tool implementations
+- `utils/` — ANSI decoding, path security, logging, cleanup
 
 ---
 
-## Documentation
+## For AI/LLM Code Reviewers
 
-- **[docs/API.md](docs/API.md)** — reference for all 10 tools, params, response shapes
-- **[docs/SECURITY.md](docs/SECURITY.md)** — whitelist model, env vars, HTTP exposure
-- **[docs/TESTING.md](docs/TESTING.md)** — real-flow checklist for ORFS and AutoTuner comparison
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — module layout, data flow, session model
+When reviewing OpenROAD MCP pull requests, follow the priority order above. Focus on correctness, security, and protocol adherence.
 
----
-
-## MCP Inspector
-
-Useful for iterating on tools without a full MCP client. Run `make install` once
-first — `inspect` compiles via `ts-build`, which needs `typescript/node_modules`:
-
-```bash
-make install   # first time only
-make inspect
-```
+- **Check Whitelist Integrity:** Scrutinize changes to the Tcl execution pathway. Look for command injection or bypass vulnerabilities.
+- **Check Wire Contract:** Ensure `make golden` diffs are intentional. If a tool schema changes, ensure it improves agent comprehension.
+- **Resource Leaks:** Look closely at PTY spawning, buffer allocation, and session cleanup.
+- **Ask Probing Questions:** "Does this accurately reflect the MCP spec?", "Will this strand PTY processes on termination?"
+- **Be Concise:** Provide one-sentence feedback where possible. Avoid stylistic nitpicks that `eslint` or `prettier` handle automatically.
+- **Don't generate summaries** of the PR unless asked. 
 
 ---
 
 ## License
 
 BSD 3-Clause. See [LICENSE](LICENSE).
-
----
-
-## Python package (deprecated)
-
-The `python/` directory contains the original Python/FastMCP implementation. It is no longer
-published to PyPI and is not maintained for new features. Do not add Python-specific code or tests.
