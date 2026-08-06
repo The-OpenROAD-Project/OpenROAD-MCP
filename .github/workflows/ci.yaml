@@ -1,0 +1,22 @@
+# Deprecated: Python CI. This workflow is a no-op kept only to satisfy branch
+# protection rules that reference the old check names. It will be removed once
+# branch protection is updated to require the TypeScript CI checks instead.
+# See .github/workflows/ts-ci.yml for the active gate.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        test-type: [lint, core, interactive, integration, tools]
+    steps:
+      - run: echo "deprecated — replaced by TypeScript CI"
