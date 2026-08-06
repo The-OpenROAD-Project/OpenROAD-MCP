@@ -6,12 +6,16 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  CI: "true"
+  MCP_SERVER_REQUEST_TIMEOUT: 120
+
 jobs:
   node-matrix:
     name: Node ${{ matrix.node-version }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04, macos-14]
         node-version: ["22"]
