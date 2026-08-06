@@ -87,7 +87,9 @@ export function createMcpServer(manager: OpenROADManager = defaultManager): McpS
       description:
         "Execute a state-modifying OpenROAD command (set_*, create_*, read_*, write_*, flow commands). " +
         "Use this for loading designs, running placement/routing, applying constraints, and writing " +
-        "output files. Read-only commands are blocked — use interactive_openroad_query instead.",
+        "output files. Only the BLOCKED_COMMANDS list (quit, socket, load, glob, etc.) is rejected; " +
+        "read-only commands such as report_* are also accepted here. Use interactive_openroad_query " +
+        "instead for queries to keep state changes visible and auditable.",
       inputSchema: {
         command: z.string(),
         session_id: z.string().optional(),

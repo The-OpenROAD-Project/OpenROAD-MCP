@@ -24,11 +24,9 @@ project. It ensures every file that references the version gets updated consiste
 
 ## Project context
 
-- **Build system**: hatchling (Python)
-- **Package manager**: uv
-- **Version source**: `python/pyproject.toml` `[project] version`
+- **Build system**: npm / Node.js 22
+- **Version source**: `typescript/package.json` `.version` field
 - **Changelog format**: Keep a Changelog
-- **Commit style**: Conventional Commits (`feat:`, `fix:`, `chore:`, etc.)
 - **GitHub repo**: `The-OpenROAD-Project/openroad-mcp`
 - **Release gatekeeper**: @vvbandeira (org member) — must approve and merge all releases
 
@@ -36,10 +34,10 @@ project. It ensures every file that references the version gets updated consiste
 
 ### Step 1: Determine versions
 
-Read the current version from `python/pyproject.toml`:
+Read the current version from `typescript/package.json`:
 
-```
-grep '^version = ' python/pyproject.toml
+```bash
+jq -r '.version' typescript/package.json
 ```
 
 Then ask the user what the new version should be. Suggest the next logical
@@ -73,14 +71,14 @@ git log --oneline --grep="chore: release" | head -1
 
 ### Step 3: Categorize commits into changelog sections
 
-Read each commit message and sort into Keep a Changelog categories:
+Read each commit message and sort into Keep a Changelog categories. Commits may
+use conventional prefixes **or** plain one-liner sentences — both are accepted:
 
-| Category | Conventional commit prefix |
-|----------|---------------------------|
-| **Added** | `feat:` |
-| **Changed** | `chore:`, `build:`, `ci:`, `perf:`, `refactor:` |
-| **Fixed** | `fix:` |
-| **Removed** | commits mentioning removal/deprecation |
+| Category | Prefixed form | Plain form (keyword) |
+|----------|---------------|----------------------|
+| **Added** | `feat:` | sentence mentions "add", "new", "ship" |
+| **Changed** | `chore:`, `ci:`, `build:`, `refactor:`, `docs:` | anything else |
+| **Fixed** | `fix:` | sentence mentions "fix", "correct", "repair" |
 
 For each commit, format the changelog entry as:
 ```
@@ -88,75 +86,26 @@ For each commit, format the changelog entry as:
 ```
 
 Use the PR number from the commit message if present. For commits without a PR
-number, just use the description part after the prefix.
+number, just use the description sentence.
 
 ### Step 4: Update all version references
 
 These files must be updated with the new version. Update ALL of them — missing
 one breaks the release consistency.
 
-**python/pyproject.toml** — Update `version = "X.Y.Z"` in the `[project]` section.
+**typescript/package.json** (+ lockfile) — the canonical version source:
 
-**typescript/package.json** (+ lockfile) — Update the npm package version to match
-(e.g. `npm version --prefix typescript --no-git-tag-version X.Y.Z`). The
-TypeScript server reads its advertised MCP version from `package.json`.
+```bash
+npm version --prefix typescript --no-git-tag-version X.Y.Z
+```
+
+This updates `package.json` and `package-lock.json` together. The TypeScript
+server reads its advertised MCP version from `package.json`.
 
 **server.json** — Update all version references:
 - Top-level `"version": "X.Y.Z"`
 - npm package `"version": "X.Y.Z"`
-- PyPI package `"version": "X.Y.Z"`
 - OCI identifier `"identifier": "ghcr.io/The-OpenROAD-Project/openroad-mcp:X.Y.Z"`
-
-**MCP manifest files and README** — These files use `git+https://github.com/The-OpenROAD-Project/openroad-mcp`
-without a version pin. Update every occurrence to pin to the release tag, which
-prevents supply chain attacks by ensuring users install a known, reviewed commit:
-
-Change:
-```
-"git+https://github.com/The-OpenROAD-Project/openroad-mcp"
-```
-To:
-```
-"git+https://github.com/The-OpenROAD-Project/openroad-mcp@vX.Y.Z#subdirectory=python"
-```
-
-The `#subdirectory=python` fragment is required because the Python project lives
-under `python/`, not at the repo root — without it `uvx --from git+…` fails with
-"does not appear to be a Python project".
-
-Use a single perl pass that handles all three URL patterns in the README (and
-normalizes the `#subdirectory=python` fragment, re-pinning even URLs that already
-carry it):
-- JSON/TOML quoted: `"git+https://...openroad-mcp@v0.5.3#subdirectory=python"`
-- YAML unquoted list item: `- git+https://...openroad-mcp@v0.5.3#subdirectory=python` (end of line)
-- Bare (first-time pin): `"git+https://...openroad-mcp"`
-
-```bash
-perl -i -pe 's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?:#subdirectory=python)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@vX.Y.Z#subdirectory=python!g' README.md python/README.md
-```
-
-The `!` delimiter avoids clashing with the `|` inside the lookahead `(?="|$)`.
-The lookahead matches either a closing quote (JSON/TOML) or end of line (YAML),
-so all config formats are covered. The optional `(?:#subdirectory=python)?` lets
-the pass re-pin URLs that already carry the fragment without doubling it.
-
-After updating, verify all pinned URLs show the new tag:
-```bash
-grep "The-OpenROAD-Project/openroad-mcp@" README.md python/README.md
-```
-Every line should show `@vX.Y.Z`. Also confirm no bare URLs remain:
-```bash
-grep 'The-OpenROAD-Project/openroad-mcp"' README.md python/README.md
-```
-That should return no output.
-
-> **Side note for users:** If you always want the latest version and prefer not
-> to pin, omit the `@vX.Y.Z` suffix and use the bare URL:
-> `git+https://github.com/The-OpenROAD-Project/openroad-mcp`. This trades supply chain
-> safety for convenience — acceptable for local/dev setups, not recommended
-> for shared or production environments.
-
-**python/uv.lock** — Regenerate by running `uv lock` from `python/`. Do NOT hand-edit this file.
 
 **CHANGELOG.md** — Add new section before the previous version's section.
 Today's date goes in the header. Add the link at the bottom:
@@ -170,7 +119,7 @@ Today's date goes in the header. Add the link at the bottom:
 Run the test suite to verify nothing is broken:
 
 ```bash
-cd python && uv run pytest --tb=short -q
+cd typescript && npm run test
 ```
 
 If tests fail, report the failures to the user before proceeding. Do not commit
@@ -181,8 +130,7 @@ a broken release.
 Stage only the release-related files:
 
 ```bash
-git add CHANGELOG.md python/pyproject.toml server.json python/uv.lock \
-        README.md python/README.md typescript/package.json typescript/package-lock.json
+git add CHANGELOG.md server.json typescript/package.json typescript/package-lock.json
 ```
 
 Commit under the `openroad-ci` bot identity (public org member — required so the
@@ -230,18 +178,10 @@ merge, squash, or tag.
   with `Contents: Read and write` scope (and Pull requests write for Prepare Release).
   The `auto-tag.yml` / `prepare-release.yml` workflows use it to push the release
   branch/tag as `openroad-ci`, satisfying the MCP Registry org-membership check.
-- Always use `uv lock` to regenerate the lockfile rather than editing it manually
 - The CHANGELOG date format is ISO: `YYYY-MM-DD`
 - Version tags use a `v` prefix: `v0.4.0` (but the version in files has no prefix)
-- Check for ALL files referencing the old version by running:
+- Check for ALL files referencing the old version before committing:
+  ```bash
+  grep -r "OLD_VERSION" typescript/package.json typescript/package-lock.json server.json CHANGELOG.md
   ```
-  grep -r "OLD_VERSION" --include="*.toml" --include="*.json" --include="*.lock" --include="*.md"
-  ```
-  (replace `OLD_VERSION` with the actual previous version, e.g. `0\.5\.2`)
-  before committing, to catch any missed references
-- Also verify the README git URLs were updated:
-  ```
-  grep "openroad-mcp@" README.md
-  ```
-  All occurrences should show the new `@vX.Y.Z` tag
 - If `server.json` doesn't exist, skip it (some repos may not have it)

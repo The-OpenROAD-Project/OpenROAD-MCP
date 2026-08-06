@@ -16,13 +16,6 @@
       "runtimeHint": "npx"
     },
     {
-      "registryType": "pypi",
-      "identifier": "openroad-mcp",
-      "version": "0.6.1",
-      "transport": { "type": "stdio" },
-      "runtimeHint": "uvx"
-    },
-    {
       "registryType": "oci",
       "identifier": "ghcr.io/the-openroad-project/openroad-mcp:0.6.1",
       "transport": { "type": "stdio" },

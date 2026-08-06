@@ -26,9 +26,6 @@ jobs:
           token: ${{ github.token }}
           fetch-depth: 0
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-
       - name: Set up Node.js
         uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.4.0
         with:
@@ -36,20 +33,11 @@ jobs:
           cache: "npm"
           cache-dependency-path: typescript/package-lock.json
 
-      - name: Install Python dependencies
-        run: make sync
-
-      - name: Install TypeScript dependencies
+      - name: Install dependencies
         run: npm ci
         working-directory: typescript
 
-      - name: Run Python tests
-        run: make test
-
-      - name: Run Python checks
-        run: make check
-
-      - name: Run TypeScript checks
+      - name: Run checks
         working-directory: typescript
         run: |
           npm run typecheck
@@ -59,7 +47,7 @@ jobs:
       - name: Compute new version
         id: version
         run: |
-          CURRENT=$(grep '^version = ' python/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          CURRENT=$(jq -r '.version' typescript/package.json)
           IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
           case "${{ inputs.bump_type }}" in
             major) MAJ=$((MAJ+1)); MIN=0; PAT=0 ;;
@@ -76,12 +64,6 @@ jobs:
       - name: Generate changelog entries
         run: python3 .github/scripts/generate_changelog_section.py
 
-      - name: Update python/pyproject.toml
-        run: |
-          OLD="${{ steps.version.outputs.current }}"
-          NEW="${{ steps.version.outputs.new }}"
-          sed -i "s/^version = \"${OLD}\"/version = \"${NEW}\"/" python/pyproject.toml
-
       - name: Update typescript/package.json
         working-directory: typescript
         run: |
@@ -97,45 +79,23 @@ jobs:
             sed -i "s|ghcr.io/[Tt]he-[Oo]pen[Rr][Oo][Aa][Dd]-[Pp]roject/openroad-mcp:${OLD}|ghcr.io/the-openroad-project/openroad-mcp:${NEW}|g" server.json
           fi
 
-      - name: Update README.md URLs
-        run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          # Re-pin uvx git URLs and preserve/normalize #subdirectory=python
-          # (Python package lives under python/, not repo root).
-          perl -i -pe \
-            's!git\+https://github\.com/The-OpenROAD-Project/openroad-mcp(?:\@v[\d.]+)?(?:#subdirectory=python)?(?="|$)!git+https://github.com/The-OpenROAD-Project/openroad-mcp\@'"${TAG}"'#subdirectory=python!g' \
-            README.md python/README.md
-
       - name: Update CHANGELOG.md
         run: |
           python3 .github/scripts/update_changelog.py \
             "${{ steps.version.outputs.new }}" \
             "${{ steps.version.outputs.tag }}"
 
-      - name: Regenerate python/uv.lock
-        run: uv lock
-        working-directory: python
-
       - name: Verify no stale version references
         run: |
-          OLD="${{ steps.version.outputs.current }}"
           NEW="${{ steps.version.outputs.new }}"
-          TAG="${{ steps.version.outputs.tag }}"
           FAIL=0
 
           check() {
-            # $1 = human label, $2 = actual, $3 = expected
             if [ "$2" != "$3" ]; then
               echo "ERROR: $1 is '$2', expected '$3'"
               FAIL=1
             fi
           }
-
-          # Check exact version fields via jq/toml grep instead of a raw
-          # string search, so a dependency that happens to share the old
-          # version number (common in package-lock.json) can't false-positive.
-          check "python/pyproject.toml version" \
-            "$(grep -m1 '^version = ' python/pyproject.toml | sed 's/version = "\(.*\)"/\1/')" "$NEW"
 
           check "typescript/package.json version" \
             "$(jq -r '.version' typescript/package.json)" "$NEW"
@@ -148,26 +108,12 @@ jobs:
 
           if [ -f server.json ]; then
             check "server.json .version" "$(jq -r '.version' server.json)" "$NEW"
-            # OCI packages use identifier (no .version); only check packages that declare version.
-            check "server.json .packages[].version" \
-              "$(jq -r '[.packages[] | select(.version != null) | .version] | unique | join(",")' server.json)" "$NEW"
+            check "server.json npm package version" \
+              "$(jq -r '.packages[] | select(.registryType=="npm") | .version' server.json)" "$NEW"
             check "server.json OCI identifier" \
               "$(jq -r '.packages[] | select(.registryType=="oci") | .identifier' server.json)" \
               "ghcr.io/the-openroad-project/openroad-mcp:${NEW}"
           fi
-
-          check "python/uv.lock openroad-mcp version" \
-            "$(awk '/^name = "openroad-mcp"$/{getline; print; exit}' python/uv.lock | sed 's/^version = "\(.*\)"$/\1/')" "$NEW"
-
-          # Fail on leftover wrong-version pins. Do not use a bare `openroad-mcp"`
-          # grep — that false-positives on JSON keys and npx args ("openroad-mcp":).
-          # Intentional unpinned "track latest" doc URLs are allowed.
-          for f in README.md python/README.md; do
-            if grep -q "openroad-mcp@v" "$f" && ! grep -q "openroad-mcp@${TAG}#subdirectory=python" "$f"; then
-              echo "ERROR: $f has a git+ URL not pinned to ${TAG}#subdirectory=python"
-              FAIL=1
-            fi
-          done
 
           if [ "$FAIL" -ne 0 ]; then
             exit 1
@@ -183,12 +129,8 @@ jobs:
           git config user.email "54529053+openroad-ci@users.noreply.github.com"
           git checkout -b "${BRANCH}"
           git add \
-            python/pyproject.toml \
-            python/uv.lock \
             typescript/package.json \
             typescript/package-lock.json \
-            README.md \
-            python/README.md \
             CHANGELOG.md
           if [ -f server.json ]; then git add server.json; fi
           git commit -m "chore: release ${TAG}"
@@ -205,7 +147,7 @@ jobs:
             --body "$(cat <<EOF
           ## Release ${TAG}
 
-          Dual-distribution bump (Python/PyPI + TypeScript/npm).
+          TypeScript/npm version bump.
 
           See [CHANGELOG.md](https://github.com/The-OpenROAD-Project/openroad-mcp/blob/${BRANCH}/CHANGELOG.md) for full details.
 

@@ -2,44 +2,94 @@ name: TypeScript CI
 
 on:
   push:
-    branches: [main, "feat/ts-migration**"]
-    paths: ["typescript/**", "Dockerfile.ts"]
+    branches: [main]
   pull_request:
-    branches: [main, "feat/ts-migration**"]
-    paths: ["typescript/**", "Dockerfile.ts"]
+    branches: [main]
+  schedule:
+    # nightly at 02:30 UTC — runs the performance suite
+    - cron: "30 2 * * *"
 
 jobs:
-  # Host-side lint/unit/integration/perf. Does not use the Docker image —
-  # intentional so PR feedback stays fast without pulling openroad/orfs.
   ts-check:
+    name: Lint, typecheck, test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: typescript
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.4.0
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: typescript/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run test
-      - run: npm run test:integration
-      - run: npm run test:performance
 
-  # Packaging smoke check only: build the runtime image (which runs the
-  # in-Dockerfile entrypoint / openroad / ORFS_FLOW_PATH RUNs) and invoke
-  # --help from the resulting image. Independent of ts-check by design.
-  # Full in-image suites live in Dockerfile.ts `test` stage (local:
-  # docker build -f Dockerfile.ts --target test … && docker run …).
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5
+        with:
+          flags: unit
+          fail_ci_if_error: false
+
+      - run: npm run test:integration
+
+      - name: Assert no golden fixture drift
+        # Pathspec is relative to the job's working-directory (typescript/).
+        run: |
+          npm run generate:golden
+          git diff --exit-code -- __tests__/golden/fixtures/
+
   ts-docker-build:
+    name: Docker smoke test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - name: Build TypeScript runtime image
-        run: docker build --progress=plain -f Dockerfile.ts --target runtime -t openroad-mcp-ts:ci .
+        run: docker build --progress=plain -f Dockerfile --target runtime -t openroad-mcp-ts:ci .
+
       - name: Smoke-run entrypoint from built image
         run: docker run --rm openroad-mcp-ts:ci --help
+
+  ts-docker-test:
+    name: Docker test stage (real OpenROAD)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build test image
+        # --target test pulls openroad/orfs as the base so OpenROAD binaries
+        # are available; npm run test:all runs unit + integration + performance.
+        run: docker build --progress=plain -f Dockerfile --target test -t openroad-mcp-test:ci .
+
+      - name: Run full test suite inside image
+        run: docker run --rm openroad-mcp-test:ci
+
+  ts-perf:
+    name: Performance benchmarks (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typescript
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: typescript/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run test:performance

@@ -1,181 +1,118 @@
 # Contributing to OpenROAD MCP
 
-Thank you for your interest in contributing to OpenROAD MCP! This document provides guidelines and instructions for contributing to the project.
+Thank you for contributing! This guide covers the OpenROAD MCP server.
 
-## Table of Contents
+## Review Priorities
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Workflow](#development-workflow)
-- [Code Standards](#code-standards)
-- [Testing](#testing)
-- [Submitting Changes](#submitting-changes)
-- [MCP-Specific Guidelines](#mcp-specific-guidelines)
+Reviews are prioritized in this order:
 
-## Code of Conduct
+### 1. Correctness & Security
+Code must execute safely and securely.
+- **Whitelist integrity:** Ensure any new Tcl commands are safely handled and do not bypass the command whitelist (`docs/SECURITY.md`).
+- **Path traversal:** Avoid any possibility of reading outside `ORFS_FLOW_PATH` for report images.
+- **Session management:** Ensure sessions properly clean up resources (PTYs) and don't leak memory on shutdown.
 
-We are committed to providing a welcoming and inclusive environment. Please be respectful and professional in all interactions.
+### 2. Protocol Adherence (Wire Contract)
+The server must adhere strictly to the Model Context Protocol.
+- **Golden Fixtures:** Any change to tool responses or inputs must be verified using `make golden`. The CI asserts no fixture drift to prevent breaking the wire contract.
+- Tool schemas must accurately describe parameters so AI agents know how to call them.
 
-## Getting Started
+### 3. Testing
+Every code change should have accompanying tests.
+- Unit tests for stateless logic.
+- Integration tests for changes involving the OpenROAD subprocess or PTYs.
+- Run `npm run test:all` to verify before PR submission.
 
-### Prerequisites
-
-- Python 3.13 or higher
-- [uv](https://github.com/astral-sh/uv) package manager
-- OpenROAD installed on your system
-- Git for version control
-
-### Initial Setup
-
-1. Fork the repository on GitHub
-2. Clone your fork locally:
-   ```bash
-   git clone https://github.com/your-username/openroad-mcp.git
-   cd openroad-mcp
-   ```
-
-3. Set up the development environment:
-   ```bash
-   uv venv
-   make sync
-   ```
-
-4. Install pre-commit hooks:
-   ```bash
-   uv run pre-commit install
-   ```
-
-## Development Workflow
-
-### Development Process
-
-1. Create a new branch from `main`:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. Make your changes following our [Code Standards](#code-standards)
-
-3. Write tests for your changes
-
-4. Run the test suite:
-   ```bash
-   make test
-   ```
-
-5. Format and lint your code:
-   ```bash
-   make format
-   make check
-   ```
-
-6. Commit your changes with clear, descriptive commit messages
-
-## Testing
-
-### Test Structure
-
-- Unit tests in `python/tests/` for individual components
-- Integration tests in `python/tests/integration/` for full workflows
-- Interactive PTY tests in `python/tests/interactive/`
-- Performance tests in `python/tests/performance/`
-
-### Running Tests
-
-```bash
-make test                # Run core tests (recommended)
-make test-interactive    # Run PTY tests in Docker
-make test-integration    # Run integration tests
-make test-performance    # Run performance benchmarks
-make test-coverage       # Generate coverage reports
-make test-all           # Run all tests
-```
-
-### Writing Tests
-
-- Use pytest with async support
-- Write clear, focused test cases
-- Include both positive and negative test cases
-- Mock external dependencies when appropriate
-- Aim for high code coverage
-
-## Submitting Changes
-
-### Pull Request Process
-
-1. Ensure all tests pass and code is formatted:
-   ```bash
-   make test
-   make check
-   ```
-
-2. Update documentation if needed
-
-3. Push your branch to your fork:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-4. Create a Pull Request on GitHub:
-   - Provide a clear title and description
-   - Reference any related issues or tickets
-   - Include test results if applicable
-   - Request review from maintainers
-
-### Pull Request Guidelines
-
-- Keep PRs focused on a single feature or fix
-- Include tests for new functionality
-- Update relevant documentation
-- Ensure CI checks pass
-- Respond to review feedback promptly
-
-### Commit Messages
-
-Write clear, descriptive commit messages:
-
-```
-Add timing checkpoint functionality
-
-- Implement checkpoint creation with delta compression
-- Add restore capability for timing data
-- Include tests for checkpoint/restore cycle
-
-Fixes #123
-```
-
-## MCP-Specific Guidelines
-
-### Tool Implementation
-
-All MCP tools should:
-
-1. Inherit from appropriate base classes
-2. Include comprehensive type hints
-3. Return structured results
-4. Handle errors gracefully
-5. Include clear docstrings
-
-### Testing MCP Tools
-
-Use the MCP Inspector for manual testing:
-
-```bash
-make inspect
-```
-
-This launches the MCP Inspector UI for interactive testing of tools.
-
-## Additional Resources
-
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-- [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
-- [OpenROAD Documentation](https://openroad.readthedocs.io/)
-
-## License
-
-By contributing to OpenROAD MCP, you agree that your contributions will be licensed under the project's license (TBD).
+### 4. Code Style & Quality
+We enforce standard formatting and types.
+- Types must strictly define the domain. Avoid `any`.
+- Keep the `OpenROADManager` decoupled from MCP transports.
+- Run `npm run typecheck` and `npm run lint` before committing.
 
 ---
 
-Thank you for contributing to OpenROAD MCP! Your efforts help make this project better for everyone.
+## Development Setup
+
+**Requirements:**
+- **Node.js 22+**
+- **npm** (bundled with Node)
+- **OpenROAD** on your `PATH` for integration tests
+
+**Getting Started:**
+```bash
+git clone https://github.com/The-OpenROAD-Project/openroad-mcp.git
+cd openroad-mcp/typescript
+npm install
+npm run build
+```
+
+## Running Tests
+
+Run these individually during development and together before opening a PR:
+
+```bash
+npm run test             # Unit tests (fast, no OpenROAD required)
+npm run test:integration # Integration tests (require OpenROAD on PATH)
+npm run test:performance # Performance / memory benchmarks
+npm run test:all         # Run everything
+```
+
+*(Tests use [vitest](https://vitest.dev/). Configuration is in `typescript/vitest.config.ts`.)*
+
+---
+
+## Making Changes
+
+### Branch Naming
+Use a short descriptive prefix:
+- `feat/` for new features
+- `fix/` for bug fixes
+- `docs/` for documentation
+- `ci/` for CI changes
+- `chore/` for maintenance
+
+### Commit Messages
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) convention. The release changelog generator categorizes commits by prefix:
+- `feat(...)` → Added
+- `fix(...)` → Fixed
+- `docs(...)`, `ci(...)`, `chore(...)`, `build(...)`, `test(...)` → Changed
+
+*Example:* `fix(whitelist): handle backslash-escaped verbs in compound statements`
+
+### Pull Request Checklist
+- [ ] `npm run typecheck` and `npm run lint` pass.
+- [ ] `npm run test:all` passes.
+- [ ] `make golden` is run and `git diff` is clean (no unexpected fixture drift).
+- [ ] New tools or schema changes are reflected in `docs/API.md`.
+- [ ] Security-relevant changes are reflected in `docs/SECURITY.md`.
+
+---
+
+## Project Structure
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a full module map. Key directories under `typescript/src/`:
+
+- `config/` — CLI flags, settings, command whitelist
+- `core/` — `OpenROADManager`, result models
+- `interactive/` — Session management, PTY handler, circular buffer
+- `tools/` — MCP tool implementations
+- `utils/` — ANSI decoding, path security, logging, cleanup
+
+---
+
+## For AI/LLM Code Reviewers
+
+When reviewing OpenROAD MCP pull requests, follow the priority order above. Focus on correctness, security, and protocol adherence.
+
+- **Check Whitelist Integrity:** Scrutinize changes to the Tcl execution pathway. Look for command injection or bypass vulnerabilities.
+- **Check Wire Contract:** Ensure `make golden` diffs are intentional. If a tool schema changes, ensure it improves agent comprehension.
+- **Resource Leaks:** Look closely at PTY spawning, buffer allocation, and session cleanup.
+- **Ask Probing Questions:** "Does this accurately reflect the MCP spec?", "Will this strand PTY processes on termination?"
+- **Be Concise:** Provide one-sentence feedback where possible. Avoid stylistic nitpicks that `eslint` or `prettier` handle automatically.
+- **Don't generate summaries** of the PR unless asked. 
+
+---
+
+## License
+
+BSD 3-Clause. See [LICENSE](LICENSE).

@@ -1,61 +1,96 @@
+# TypeScript/Node.js image for the OpenROAD MCP server (npx distribution).
+#
+# Built on openroad/orfs so the OpenROAD binaries the PTY sessions drive are
+# present at runtime — the same reason the Python Dockerfile uses this base.
+# node-pty and sharp need a C++ toolchain during `npm ci`, so the builder
+# installs python3/make/g++; the runtime stage carries only the prebuilt
+# node_modules and compiled dist.
+
 ARG ORFS_VERSION=26Q1-534-g510137693
-ARG UV_VERSION=0.10.9
+ARG NODE_MAJOR=22
 
-FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
-
-# Stage 1: builder - installs deps, discarded from final image.
-# Both stages share openroad/orfs because OpenROAD binaries are needed at runtime.
+# Stage 1: builder — install Node + toolchain, build TypeScript, keep dev deps
+# so the test stage can reuse this image.
 FROM openroad/orfs:${ORFS_VERSION} AS builder
+ARG NODE_MAJOR
 
-COPY --from=uv /uv /usr/local/bin/uv
-
-ENV UV_PYTHON_INSTALL_DIR=/opt/python
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates gnupg python3 make g++ \
+    && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Manifests first — dependency layer is cached independently of source changes.
-COPY python/pyproject.toml python/uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+# Manifests + postinstall script first so the dependency layer is cached
+# independently of source changes. postinstall runs scripts/fix-node-pty.cjs.
+COPY typescript/package.json typescript/package-lock.json ./
+COPY typescript/scripts ./scripts
+RUN npm ci
 
-# --no-editable installs into site-packages; source tree not needed at runtime.
-COPY python/src/ ./src/
-COPY python/README.md ./
-RUN uv sync --frozen --no-dev --no-editable
+COPY typescript/tsconfig.json typescript/tsconfig.test.json ./
+COPY typescript/src ./src
+RUN npm run build
 
+# Stage 2: prod-deps — drop dev dependencies while keeping the already-compiled
+# native modules (node-pty, sharp), so the runtime image stays lean without a
+# toolchain.
+FROM builder AS prod-deps
+RUN npm prune --omit=dev
 
-# Stage 2: runtime
-# Re-declare without defaults — values are inherited from the global ARGs above.
+# Stage 3: runtime
 ARG ORFS_VERSION
 FROM openroad/orfs:${ORFS_VERSION} AS runtime
+ARG NODE_MAJOR
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates gnupg \
+    && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN if ! node --version | grep -qE "^v${NODE_MAJOR}\."; then \
+        echo "ERROR: expected Node ${NODE_MAJOR}, got $(node --version)"; exit 1; \
+    fi
 
 RUN useradd --create-home --shell /bin/bash --uid 1000 --no-log-init appuser
 
 WORKDIR /app
 
-COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
-COPY --from=builder --chown=appuser:appuser /opt/python /opt/python
+COPY --from=prod-deps --chown=appuser:appuser /app/node_modules /app/node_modules
+COPY --from=builder --chown=appuser:appuser /app/dist /app/dist
+COPY --chown=appuser:appuser typescript/package.json ./
 
-LABEL io.modelcontextprotocol.server.name="io.github.luarss/openroad-mcp"
+LABEL io.modelcontextprotocol.server.name="io.github.The-OpenROAD-Project/openroad-mcp"
 
 USER appuser
 
-ENV PATH="/app/.venv/bin:/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scripts/tools/install/yosys/bin:$PATH" \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
+ENV PATH="/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scripts/tools/install/yosys/bin:$PATH" \
+    NODE_ENV=production \
     ORFS_FLOW_PATH=/OpenROAD-flow-scripts/flow
 
-# Verify non-editable install, console script, and ORFS path are all functional.
-RUN /app/.venv/bin/python -c "import openroad_mcp; print(openroad_mcp.__file__)" && \
-    openroad-mcp --help > /dev/null && \
-    test -d "${ORFS_FLOW_PATH}" || (echo "ERROR: ORFS_FLOW_PATH=${ORFS_FLOW_PATH} not found" && exit 1)
+# Verify the entrypoint boots, the openroad binary is reachable, and the ORFS
+# flow path exists. Each check is its own RUN so failures are attributed to
+# the right layer. --help exits 0 via commander (see cli.ts); that only ends
+# this RUN layer — later RUNs still execute. Output is left on stdout so
+# `docker build --progress=plain` / CI logs show the help text.
+RUN node /app/dist/main.js --help \
+    && echo "OK: entrypoint --help exited 0"
+RUN command -v openroad \
+    && openroad -version \
+    && echo "OK: openroad on PATH"
+RUN test -d "${ORFS_FLOW_PATH}" \
+    && echo "OK: ORFS_FLOW_PATH=${ORFS_FLOW_PATH}"
 
-ENTRYPOINT ["openroad-mcp"]
+ENTRYPOINT ["node", "/app/dist/main.js"]
 
-# Stage 3: test — pinned ORFS version + uv inherited from builder
+# Stage 4: test — full dev deps + tests, runs unit and real-OpenROAD
+# integration suites against the binaries in this image.
 FROM builder AS test
-COPY python/tests/ ./tests/
-RUN uv sync --frozen --all-extras
-ENV PYTHONPATH=/app/src
-ENV PATH="/app/.venv/bin:/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scripts/tools/install/yosys/bin:$PATH"
-USER root
-CMD ["bash"]
+COPY typescript/vitest.config.ts typescript/vitest.config.integration.ts typescript/vitest.config.performance.ts typescript/eslint.config.ts ./
+COPY typescript/__tests__ ./__tests__
+# Golden fixtures are co-located at __tests__/golden/fixtures/ (committed TS
+# output) and are already present from the COPY above — no separate copy needed.
+ENV PATH="/OpenROAD-flow-scripts/tools/install/OpenROAD/bin:/OpenROAD-flow-scripts/tools/install/yosys/bin:$PATH" \
+    ORFS_FLOW_PATH=/OpenROAD-flow-scripts/flow
+CMD ["npm", "run", "test:all"]
