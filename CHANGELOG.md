@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-11
+
+### Changed
+- Chore/remove python distribution ([#168](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/168))
+- Chore/v1.0 cleanup test improvements ([#164](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/164))
+- bump the npm_and_yarn group across 1 directory with 3 updates ([#163](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/163))
+- bump cryptography ([#162](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/162))
+- bump ip-address ([#160](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/160))
+- Chore/v1.0 ts primary ([#161](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/161))
+- fixed project casing ([#159](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/159))
+
 ## [0.6.1] - 2026-07-29
 
 ### Fixed
@@ -134,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - QUICKSTART guide, ARCHITECTURE, and CONTRIBUTING documentation
 - ROADMAP for planned features
 
+[1.0.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v1.0.0
 [0.6.1]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.6.1
 [0.6.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.6.0
 [0.5.5]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.5.5
