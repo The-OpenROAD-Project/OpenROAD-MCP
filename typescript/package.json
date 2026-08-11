@@ -34,16 +34,16 @@
     "generate:golden": "tsx __tests__/golden/generate_golden.ts"
   },
   "devDependencies": {
-    "@types/node": "^25.9.2",
+    "@types/node": "^26.2.0",
     "@types/pidusage": "^2.0.5",
-    "@types/sharp": "^0.31.1",
+    "@types/sharp": "^0.32.0",
     "@typescript-eslint/eslint-plugin": "^8.60.1",
     "@typescript-eslint/parser": "^8.60.1",
     "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^10.4.1",
     "jiti": "^2.7.0",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.8"
   },
   "dependencies": {
