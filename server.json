@@ -6,18 +6,18 @@
     "url": "https://github.com/The-OpenROAD-Project/openroad-mcp",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "1.0.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "openroad-mcp",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "transport": { "type": "stdio" },
       "runtimeHint": "npx"
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/the-openroad-project/openroad-mcp:1.0.0",
+      "identifier": "ghcr.io/the-openroad-project/openroad-mcp:1.0.1",
       "transport": { "type": "stdio" },
       "runtimeHint": "docker"
     }

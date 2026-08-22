@@ -1,6 +1,6 @@
 {
   "name": "openroad-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "OpenROAD MCP server (TypeScript/npx)",
   "mcpName": "io.github.The-OpenROAD-Project/openroad-mcp",
   "type": "module",

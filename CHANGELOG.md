@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-22
+
+### Changed
+- Fix/pty command execution ([#175](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/175))
+- Docs/update demo assets ([#177](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/177))
+- bump the npm group in /typescript with 11 updates ([#171](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/171))
+- bump the actions group with 5 updates ([#170](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/170))
+- re-add root uv.lock to refresh stale dependency graph ([#165](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/165))
+- add dependabot config for scheduled updates ([#166](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/166))
+
 ## [1.0.0] - 2026-08-11
 
 ### Changed
@@ -145,6 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - QUICKSTART guide, ARCHITECTURE, and CONTRIBUTING documentation
 - ROADMAP for planned features
 
+[1.0.1]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v1.0.1
 [1.0.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v1.0.0
 [0.6.1]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.6.1
 [0.6.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.6.0
