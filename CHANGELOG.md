@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-26
+
+### Changed
+- Mcp tool improvement ([#181](https://github.com/The-OpenROAD-Project/openroad-mcp/pull/181))
+
 ## [1.0.1] - 2026-08-22
 
 ### Changed
@@ -155,6 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - QUICKSTART guide, ARCHITECTURE, and CONTRIBUTING documentation
 - ROADMAP for planned features
 
+[1.1.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v1.1.0
 [1.0.1]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v1.0.1
 [1.0.0]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v1.0.0
 [0.6.1]: https://github.com/The-OpenROAD-Project/openroad-mcp/releases/tag/v0.6.1
