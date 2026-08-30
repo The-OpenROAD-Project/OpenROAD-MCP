@@ -5,8 +5,8 @@ description: |
   OpenROAD / OpenROAD-flow-scripts (ORFS) for physical design, timing, power,
   and report analysis. Handles prerequisite checks (Node.js 22+, `openroad` in
   PATH, optional ORFS), client registration (Claude Code, Claude Desktop,
-  Cursor, VS Code/Copilot, Windsurf, Cline/Roo, Zed, Docker), and a connection
-  smoke test.
+  Cursor, VS Code/Copilot, Windsurf, Cline/Roo, Continue, PearAI, Zed, Docker),
+  and a connection smoke test.
 
   Use this skill whenever the user asks to:
   - Set up, install, configure, or connect the OpenROAD MCP server
@@ -68,7 +68,10 @@ elsewhere, note the path for Step 2. See the
 ## Step 2: Register the server with the MCP client
 
 Ask the user which MCP client they use if it's not obvious, then apply the
-matching configuration. The standard STDIO config used by most clients is:
+matching configuration. These snippets are kept in sync with the
+[README's "Supported MCP Clients" section](https://github.com/The-OpenROAD-Project/openroad-mcp#supported-mcp-clients) —
+treat the README as the source of truth if the two ever drift. The standard
+STDIO config used by most clients is:
 
 ```json
 {
@@ -136,6 +139,20 @@ Add the standard config to `~/.codeium/windsurf/mcp_config.json`.
 ### Cline / Roo Code
 
 Add the standard config to `cline_mcp_settings.json` (Cline) or `.roo/mcp.json` (Roo Code).
+
+### Continue / PearAI
+
+Add to the respective `config.json` under `modelContextProtocolServers`:
+
+```json
+{
+  "transport": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "openroad-mcp"]
+  }
+}
+```
 
 ### Zed
 
