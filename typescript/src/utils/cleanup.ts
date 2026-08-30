@@ -5,15 +5,8 @@ const logger = getLogger("cleanup");
 
 type CleanupHandler = () => Promise<void> | void;
 
-/**
- * Coordinates graceful shutdown. Node is single-threaded and event-driven, so
- * this collapses the Python atexit/signal/threading version into process signal
- * handlers plus a single shutdown promise.
- *
- * `waitForShutdown()` blocks the server lifecycle until either a signal arrives
- * or the transport closes (both call `triggerShutdown()`). A signal also arms an
- * unref'd force-exit timer so a hung graceful shutdown still exits the process.
- */
+// Coordinates graceful shutdown: waitForShutdown() blocks until a signal or transport close
+// triggers it, and a signal also arms an unref'd force-exit timer as a safety net.
 export class CleanupManager {
   private shutdownInitiated = false;
   private readonly handlers: CleanupHandler[] = [];
@@ -33,10 +26,8 @@ export class CleanupManager {
       logger.info(
         `Received ${signal}, shutting down (forcing exit in ${FORCE_EXIT_DELAY_SECONDS}s if it hangs)`,
       );
-      // Force-exit safety net: if graceful shutdown stalls, leave anyway. This
-      // path only fires when cleanup failed to finish in time, so it exits
-      // non-zero — a forced exit is an abnormal outcome, not a clean shutdown.
-      // The timer is unref'd so it never keeps the event loop alive on its own.
+      // Force-exit safety net: exits non-zero since a forced exit is abnormal. Unref'd so it
+      // never keeps the event loop alive on its own.
       const timer = setTimeout(() => {
         logger.error(
           `Graceful shutdown did not complete within ${FORCE_EXIT_DELAY_SECONDS}s; forcing exit`,
@@ -50,11 +41,7 @@ export class CleanupManager {
     process.on("SIGINT", onSignal);
   }
 
-  /**
-   * Unblock `waitForShutdown()`. Idempotent: a second signal or a transport
-   * close after the first is a no-op. Called by the signal handlers and by the
-   * stdio transport's onclose.
-   */
+  // Unblocks waitForShutdown(); idempotent against repeated signals/close events.
   triggerShutdown(): void {
     if (this.shutdownInitiated) return;
     this.shutdownInitiated = true;

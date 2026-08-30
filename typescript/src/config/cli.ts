@@ -21,8 +21,7 @@ const MAX_PORT = 65535;
 function parsePort(value: string): number {
   const trimmed = value.trim();
   const port = Number.parseInt(trimmed, 10);
-  // Reject non-digits ("-1", "80abc", "1.5") and out-of-range values up front so
-  // a bad port fails here with a clear message instead of later at listen().
+  // Reject non-digits and out-of-range values here for a clear error instead of one from listen().
   if (!/^\d+$/.test(trimmed) || port < MIN_PORT || port > MAX_PORT) {
     throw new ValidationError(
       `Invalid --port value: '${value}'. Expected an integer between ${MIN_PORT} and ${MAX_PORT}.`,
@@ -31,14 +30,8 @@ function parsePort(value: string): number {
   return port;
 }
 
-/**
- * Parse argv into a CLIConfig. Pass an explicit argument array (without the
- * node/script prefix) in tests; omit it to read process.argv.
- *
- * commander is configured with exitOverride so bad input throws a
- * ValidationError instead of calling process.exit, which keeps parsing testable
- * and lets main.ts map every config failure to a single exit code.
- */
+// Parses argv into a CLIConfig; exitOverride makes bad input throw ValidationError instead of
+// calling process.exit, so main.ts can map every config failure to a single exit code.
 export function parseCliArgs(argv?: string[]): CLIConfig {
   const program = new Command();
   program
@@ -64,8 +57,7 @@ export function parseCliArgs(argv?: string[]): CLIConfig {
         .default("INFO"),
     )
     .exitOverride((err) => {
-      // --help / --version already printed their output; exit cleanly rather
-      // than surfacing them as configuration errors.
+      // --help / --version already printed their output; exit cleanly.
       if (err.code === "commander.helpDisplayed" || err.code === "commander.version") {
         process.exit(0);
       }
@@ -88,8 +80,7 @@ export function parseCliArgs(argv?: string[]): CLIConfig {
   const host = opts.host as string;
   const port = opts.port as number;
 
-  // HTTP host/port are meaningless for stdio; reject them so a misconfigured
-  // command fails loudly instead of silently ignoring the flags.
+  // HTTP host/port are meaningless for stdio; reject rather than silently ignore them.
   if (mode !== "http" && (host !== DEFAULT_HOST || port !== DEFAULT_PORT)) {
     throw new ValidationError(
       "--host and --port options are only valid with --transport http",

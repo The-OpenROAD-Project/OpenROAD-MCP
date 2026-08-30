@@ -28,10 +28,7 @@ import { flowJobs } from "./core/flow_jobs.js";
 
 const logger = getLogger("server");
 
-// Read from package.json (the single source of truth, rewritten by `npm version`
-// at release time) so the advertised MCP server version never drifts. Both the
-// published npm package and the Docker image ship package.json next to dist/, so
-// ../package.json resolves relative to this compiled module.
+// Read from package.json so the advertised version never drifts from `npm version` at release.
 const VERSION = (
   JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
     version: string;
@@ -52,13 +49,8 @@ function text(value: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text" as const, text: value }] };
 }
 
-/**
- * Build an McpServer with all 15 tools registered. Accepts an optional manager
- * so tests can inject an isolated/mocked one; defaults to the module singleton.
- *
- * Tool names, descriptions, input params, and annotations mirror the Python
- * server.py verbatim so the wire contract is unchanged across the migration.
- */
+// Builds an McpServer with all 15 tools registered, mirroring Python server.py's wire contract.
+// Accepts an optional manager so tests can inject an isolated/mocked one.
 export function createMcpServer(manager: OpenROADManager = defaultManager): McpServer {
   const mcp = new McpServer({ name: "openroad-mcp", version: VERSION });
 
@@ -444,8 +436,7 @@ export function createMcpServer(manager: OpenROADManager = defaultManager): McpS
   return mcp;
 }
 
-// Module-level server instance for the production entrypoint. Tests build their
-// own isolated server via createMcpServer().
+// Module-level server instance for the production entrypoint; tests use createMcpServer() instead.
 export const mcp = createMcpServer();
 
 export async function shutdownOpenroad(): Promise<void> {
@@ -458,8 +449,7 @@ export async function shutdownOpenroad(): Promise<void> {
   }
 }
 
-// Cap request bodies so a large or malicious POST can't buffer unbounded
-// memory. 1 MB is generous for JSON-RPC control messages.
+// Caps request bodies so a large or malicious POST can't buffer unbounded memory.
 const MAX_BODY_BYTES = 1_000_000;
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -478,14 +468,8 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(raw);
 }
 
-/**
- * Handle one HTTP request in stateless mode. The SDK forbids reusing a
- * streamable-HTTP transport across requests: a shared transport keys its
- * request-to-stream map by JSON-RPC id, so two clients both numbering from 1
- * would collide. A fresh server + transport per request keeps clients isolated;
- * both are torn down when the response closes. OpenROADManager owns session
- * continuity via its own session_id, independent of MCP.
- */
+// Handles one HTTP request in stateless mode: a fresh server + transport per request avoids
+// JSON-RPC id collisions between clients: OpenROADManager owns session continuity separately.
 async function handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const requestServer = createMcpServer();
   const transport = new StreamableHTTPServerTransport();
@@ -494,9 +478,7 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse): Pro
     void requestServer.close();
   });
   try {
-    // The SDK's streamable-HTTP transport types its onclose as
-    // `(() => void) | undefined`, which trips exactOptionalPropertyTypes against
-    // the Transport interface; the runtime contract is unaffected.
+    // Cast works around an exactOptionalPropertyTypes mismatch in the SDK's onclose typing.
     await requestServer.connect(
       transport as unknown as Parameters<typeof requestServer.connect>[0],
     );
@@ -512,11 +494,8 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse): Pro
   }
 }
 
-/**
- * Boot the MCP server for the configured transport and block until shutdown.
- * Lifecycle ends on SIGTERM/SIGINT or transport close, then every session is
- * cleaned up.
- */
+// Boots the MCP server for the configured transport and blocks until shutdown (SIGTERM/SIGINT
+// or transport close), then cleans up every session.
 export async function runServer(config: CLIConfig): Promise<void> {
   cleanupManager.registerAsyncCleanupHandler(shutdownOpenroad);
   // A flow run outlives the server otherwise: make and its openroad children
@@ -526,8 +505,7 @@ export async function runServer(config: CLIConfig): Promise<void> {
 
   try {
     if (config.transport.mode === "stdio") {
-      // A client disconnect / stdin EOF closes the transport; treat that as a
-      // shutdown so the process does not hang waiting for a signal.
+      // Treat a client disconnect / stdin EOF as a shutdown so the process doesn't hang.
       mcp.server.onclose = (): void => cleanupManager.triggerShutdown();
       const transport = new StdioServerTransport();
       await mcp.connect(transport);
@@ -539,8 +517,7 @@ export async function runServer(config: CLIConfig): Promise<void> {
       });
 
       const { host, port } = config.transport;
-      // Bind can fail (port in use, permission denied); surface it as a clean
-      // rejection instead of an uncaught 'error' event that crashes the process.
+      // Surface a bind failure as a clean rejection instead of an uncaught 'error' event.
       await new Promise<void>((resolve, reject) => {
         const onListenError = (e: Error): void => {
           reject(new Error(`Failed to start HTTP server on ${host}:${port}: ${e.message}`));
@@ -552,8 +529,7 @@ export async function runServer(config: CLIConfig): Promise<void> {
         });
       });
 
-      // After a successful bind, keep runtime errors from crashing the process:
-      // log and trigger graceful shutdown instead.
+      // After a successful bind, log and trigger graceful shutdown instead of crashing.
       httpServer.on("error", (e: Error): void => {
         logger.error(`HTTP server error: ${e.message}`);
         cleanupManager.triggerShutdown();

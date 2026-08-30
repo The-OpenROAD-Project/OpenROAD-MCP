@@ -5,18 +5,9 @@ import { initSettings } from "./config/settings.js";
 import { EXIT_CODE_ERROR } from "./constants.js";
 import { ValidationError } from "./exceptions.js";
 
-/**
- * Entry point. The eager work (PATH inheritance, settings validation, CLI
- * parsing) runs before any module that reads settings or builds a logger is
- * imported.
- *
- * This ordering matters and is why `logging` and `server` are dynamic imports:
- * `utils/logging` calls `getSettings()` at module load to seed the root logger,
- * and `server` builds the manager (and its child logger) at load. Importing
- * either statically would validate settings before main()'s try/catch (turning
- * a bad env var into an uncaught stack trace) and create loggers before the CLI
- * log level is applied. Only pure modules are imported statically here.
- */
+// logging/server are dynamic imports so settings validation happens inside this try/catch
+// (a bad env var becomes a ValidationError, not an uncaught stack trace) and so loggers aren't
+// built before the CLI log level is applied.
 async function main(): Promise<void> {
   try {
     applyInheritedEnv();

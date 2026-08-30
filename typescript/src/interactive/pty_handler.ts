@@ -6,9 +6,7 @@ import type { Settings } from "../config/settings.js";
 import { PTY_COLS, PTY_ROWS, PTY_TERM } from "../constants.js";
 import { PTYError } from "./models.js";
 
-/** Terminal geometry must be a positive whole number of cells. Anything else --
- * blank, non-numeric, zero or negative -- is not a usable size, so fall back
- * rather than hand node-pty a dimension it cannot honour. */
+// Falls back unless value is a positive whole number of cells.
 function positiveIntOr(value: string | undefined, fallback: number): number {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : fallback;
@@ -77,8 +75,7 @@ export class PtyHandler {
     try {
       this.validateCommand(command);
 
-      // Terminal settings come first so an explicit caller env can override
-      // them; previously they were applied last and silently won.
+      // Terminal settings come first so an explicit caller env can override them.
       const processEnv: Record<string, string> = {
         ...Object.fromEntries(
           Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined),
@@ -100,9 +97,7 @@ export class PtyHandler {
       this._alive = true;
       this._exitCode = null;
 
-      // Register exit before onData so a fast-exiting process cannot slip
-      // its exit event through before we are listening. The guard keeps the
-      // handler idempotent against a double-delivered exit.
+      // Register exit before onData so a fast-exiting process can't slip past us.
       this._exitDisposable = this._ptyProcess.onExit(({ exitCode }) => {
         if (!this._alive && this._exitCode !== null) return;
         this._alive = false;
@@ -118,8 +113,7 @@ export class PtyHandler {
     } catch (e) {
       if (e instanceof PTYError) throw e;
       const raw = e instanceof Error ? e.message : String(e);
-      // Don't echo the full PATH into an error that may reach clients; just
-      // note whether it was set so the operator knows where to look in logs.
+      // Report only whether PATH was set, not its contents, since this may reach clients.
       const pathHint = process.env.PATH ? "set" : "empty";
       if (/posix_spawnp failed|ENOENT|command not found/i.test(raw)) {
         throw new PTYError(
@@ -147,15 +141,12 @@ export class PtyHandler {
 
   isProcessAlive(): boolean {
     if (!this._alive || !this._ptyProcess) return false;
-    // Defensive liveness probe in case the exit event was missed; signal 0
-    // sends nothing, it only tests the pid.
+    // Defensive liveness probe in case the exit event was missed; signal 0 only tests the pid.
     try {
       process.kill(this._ptyProcess.pid, 0);
       return true;
     } catch (e) {
-      // EPERM means the pid exists but we may not signal it (e.g. re-parented
-      // or owned by another user) — the process is still alive. Only ESRCH (no
-      // such pid) and other failures mean it is gone.
+      // EPERM means the pid exists but we can't signal it — still alive.
       if ((e as NodeJS.ErrnoException).code === "EPERM") return true;
       this._alive = false;
       return false;
@@ -231,7 +222,6 @@ export class PtyHandler {
     this._alive = false;
     this._dataDisposable = null;
     this._exitDisposable = null;
-    // Preserve _exitCode so a late waitForExit() caller still sees the real
-    // exit code; createSession() resets it on reuse.
+    // _exitCode is preserved for late waitForExit() callers; createSession() resets it on reuse.
   }
 }
