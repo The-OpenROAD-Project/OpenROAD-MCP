@@ -108,12 +108,19 @@ function collectResults(job: FlowJob): {
   // target up to date exits in milliseconds having written nothing, and the
   // stage files from a previous run are still on disk -- reporting those as
   // this job's results turns "nothing happened" into a green QoR report.
-  const startedMs = Date.parse(job.startedAt);
+  //
+  // Compared against the pre-run mtime snapshot rather than job.startedAt: a
+  // wall-clock reading taken in this process and a file's mtime come from
+  // independent clock reads, and comparing them raced on ephemeral runners
+  // (a clock correction, or mtime resolution coarser than a millisecond)
+  // could land the write a few ms "before" startedAt and drop a stage this
+  // run genuinely just wrote.
   const selected = resolveStages(stems, job.spec.target);
   const stages = selected.flatMap((stem) => {
     const metricsPath = path.join(job.logsDir, `${stem}.json`);
     try {
-      if (fs.statSync(metricsPath).mtimeMs < startedMs) return [];
+      const mtimeMs = fs.statSync(metricsPath).mtimeMs;
+      if (mtimeMs === job.preRunMetricsMtimes[stem]) return [];
       const parsed = parseMetricsPreservingDuplicates(fs.readFileSync(metricsPath, "utf8"));
       return [{ stage: stem, metrics: parsed.metrics, repeatedMetrics: parsed.repeatedMetrics }];
     } catch {

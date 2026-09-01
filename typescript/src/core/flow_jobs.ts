@@ -42,6 +42,15 @@ export interface FlowJob {
   logPath: string;
   statusPath: string;
   logsDir: string;
+  /**
+   * mtimeMs of every `*.json` metrics file already in logsDir when the run
+   * started, keyed by stem. Lets collectResults() tell "this run wrote it"
+   * from "left over from a previous run" by comparing filesystem timestamps
+   * to each other, never to a wall-clock reading taken in this process --
+   * that comparison raced on ephemeral runners where a clock correction or
+   * coarser mtime resolution could put the write a few ms "before" startedAt.
+   */
+  preRunMetricsMtimes: Record<string, number>;
   pid: number | null;
   /** False once the run log could not be written; progress goes blind, the run does not. */
   logWritable: boolean;
@@ -60,6 +69,25 @@ export function buildMakeArgv(spec: FlowJobSpec): string[] {
     argv.push(`${key}=${value}`);
   }
   return argv;
+}
+
+/** mtimeMs of every `*.json` file in logsDir, keyed by stem. Missing dir reads as empty. */
+function snapshotMetricsMtimes(logsDir: string): Record<string, number> {
+  const mtimes: Record<string, number> = {};
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(logsDir).filter((e) => e.endsWith(".json"));
+  } catch {
+    return mtimes;
+  }
+  for (const entry of entries) {
+    try {
+      mtimes[entry.slice(0, -".json".length)] = fs.statSync(path.join(logsDir, entry)).mtimeMs;
+    } catch {
+      // Removed between readdir and stat -- treat as absent from the baseline.
+    }
+  }
+  return mtimes;
 }
 
 export class FlowJobLimitError extends Error {
@@ -117,6 +145,7 @@ export class FlowJobRegistry {
     const logPath = path.join(logDir, `${jobId}.log`);
     const statusPath = path.join(logDir, `${jobId}.status`);
     const argv = buildMakeArgv(spec);
+    const logsDir = path.join(cwd, "logs", spec.platform, spec.design, spec.variant);
 
     const job: FlowJob = {
       jobId,
@@ -129,7 +158,8 @@ export class FlowJobRegistry {
       finishedAt: null,
       logPath,
       statusPath,
-      logsDir: path.join(cwd, "logs", spec.platform, spec.design, spec.variant),
+      logsDir,
+      preRunMetricsMtimes: snapshotMetricsMtimes(logsDir),
       pid: null,
       logWritable: true,
       error: null,
