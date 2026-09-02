@@ -67,121 +67,19 @@ elsewhere, note the path for Step 2. See the
 
 ## Step 2: Register the server with the MCP client
 
-Ask the user which MCP client they use if it's not obvious, then apply the
-matching configuration. These snippets are kept in sync with the
-[README's "Supported MCP Clients" section](https://github.com/The-OpenROAD-Project/openroad-mcp#supported-mcp-clients) —
-treat the README as the source of truth if the two ever drift. The standard
-STDIO config used by most clients is:
-
-```json
-{
-  "command": "npx",
-  "args": ["-y", "openroad-mcp"]
-}
-```
-
-### Claude Code (CLI)
-
-```bash
-claude mcp add --transport stdio openroad-mcp -- npx -y openroad-mcp
-```
-
-If a GUI-launched client can't find `openroad`, pass PATH/ORFS overrides. Use
-`command -v` so paths are never hard-coded, and keep `--transport` **between**
-the `--env` flags and the server name:
-
-```bash
-claude mcp add \
-  --env PATH="$(dirname "$(command -v openroad)"):${PATH}" \
-  --env ORFS_FLOW_PATH="${HOME}/OpenROAD-flow-scripts/flow" \
-  --transport stdio openroad-mcp \
-  -- npx -y openroad-mcp
-```
-
-### Claude Desktop
-
-Add the standard config under `mcpServers` in:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "openroad-mcp": { "command": "npx", "args": ["-y", "openroad-mcp"] }
-  }
-}
-```
-
-### Cursor
-
-Add the standard config under `mcpServers` in `.cursor/mcp.json`.
-
-### GitHub Copilot (VS Code)
-
-Add to `.vscode/mcp.json` — requires `"type": "stdio"`:
-
-```json
-{
-  "servers": {
-    "openroad-mcp": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "openroad-mcp"]
-    }
-  }
-}
-```
-
-### Windsurf
-
-Add the standard config to `~/.codeium/windsurf/mcp_config.json`.
-
-### Cline / Roo Code
-
-Add the standard config to `cline_mcp_settings.json` (Cline) or `.roo/mcp.json` (Roo Code).
-
-### Continue / PearAI
-
-Add to the respective `config.json` under `modelContextProtocolServers`:
-
-```json
-{
-  "transport": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "openroad-mcp"]
-  }
-}
-```
-
-### Zed
-
-Add to `~/.config/zed/settings.json`:
-
-```json
-{
-  "context_servers": {
-    "openroad-mcp": {
-      "command": { "path": "npx", "args": ["-y", "openroad-mcp"] }
-    }
-  }
-}
-```
-
-### Docker / other STDIO clients
-
-The server is on the [MCP Registry](https://registry.modelcontextprotocol.io) and
-GHCR. Any standard STDIO client works; for Docker:
-
-```bash
-docker run --rm -i ghcr.io/the-openroad-project/openroad-mcp:latest
-```
+Ask the user which MCP client they use if it's not obvious. The per-client
+configuration snippets and file locations are maintained as a single source of
+truth in the
+[README's "Supported MCP Clients" section](https://github.com/The-OpenROAD-Project/openroad-mcp#supported-mcp-clients).
+Read that section, then apply the snippet for the client the user named (it
+covers Claude Code, Claude Desktop, Cursor, GitHub Copilot, Windsurf, Cline /
+Roo Code, Continue / PearAI, Zed, and Docker).
 
 > **PATH note for GUI clients:** apps launched from a dock/Finder often don't
 > inherit your shell `PATH`. The server tries hard to locate `openroad` (current
 > PATH → login-shell PATH → common install dirs like `/opt/homebrew/bin`, conda,
-> local builds), but if it still fails, set the `PATH` env override as shown in
-> the Claude Code example.
+> local builds), but if it still fails, pass the `PATH` env override shown in the
+> README's Supported MCP Clients section.
 
 ## Step 3: Restart and verify the connection
 
