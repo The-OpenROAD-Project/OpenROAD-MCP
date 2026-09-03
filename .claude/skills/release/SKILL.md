@@ -15,6 +15,8 @@ description: |
   "ship it", "new release", or any mention of version numbers in the context of
   publishing. Also trigger when the user references the release process we've done
   before (e.g., "do the release thing", "same as last time").
+metadata:
+  internal: true
 ---
 
 # Release Preparation
