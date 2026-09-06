@@ -205,8 +205,21 @@ export class FlowJobRegistry {
     child.stderr?.pipe(stream, { end: false });
 
     child.on("error", (err) => {
-      stream.end();
-      this._finish(job, "failed", null, null, err.message);
+      // Finish only once the log stream has closed. Resolving waiters while the
+      // stream is still flushing lets a caller (or a test's cleanup) race the
+      // async file close -- an ENOTEMPTY on the run directory.
+      let settled = false;
+      const done = (): void => {
+        if (settled) return;
+        settled = true;
+        this._finish(job, "failed", null, null, err.message);
+      };
+      if (streamFailed || stream.destroyed) {
+        done();
+        return;
+      }
+      stream.once("error", done);
+      stream.end(done);
     });
 
     child.on("close", (code, signal) => {

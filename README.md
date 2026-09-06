@@ -20,7 +20,7 @@ With this MCP server, your AI assistant can:
 
 ## Demo
 
-![OpenROAD MCP Demo](demo/video_gen/demo-quick.gif)
+![OpenROAD MCP Demo](demo/video_gen/visual-tools.gif)
 
 [Watch full demo video](https://youtu.be/1J-Qtto-ssU)
 
