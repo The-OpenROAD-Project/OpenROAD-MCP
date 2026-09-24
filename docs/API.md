@@ -662,10 +662,14 @@ correctly.
 
 ### `read_orfs_metrics`
 
-Read a design's per-stage metrics, evaluate its `rules-base.json` gate thresholds against them, and
-surface the tagged errors and warnings from each stage log — in one call. This replaces the
-`find` + `cat` + `jq` + `grep` sequence over the flow tree that accounted for roughly 39% of all
-shell usage in the capability study.
+Read a design's per-stage metrics and surface the tagged errors and warnings from each stage log —
+in one call. This replaces the `find` + `cat` + `jq` + `grep` sequence over the flow tree that
+accounted for roughly 39% of all shell usage in the capability study.
+
+This tool does not judge QoR. ORFS keeps no rule thresholds in the flow tree: its `metadata` target
+checks the run against the QoR dashboard and writes the verdict to
+`reports/<platform>/<design>/<variant>/metadata-check.log`. Use
+[run_orfs_stage](#run_orfs_stage) with `stage: "metadata"` to run that check.
 
 | Parameter | Type | Required | Default |
 |-----------|------|----------|---------|
@@ -681,7 +685,7 @@ names the candidates. `design` and `variant` are validated as single path segmen
 
 1. an exact file stem — `4_1_cts`
 2. an **ORFS metric namespace** — `placeopt`, `detailedplace`, `globalplace`, `globalroute`,
-   `detailedroute`, `finish`. These matter because `rules-base.json` keys metrics by namespace
+   `detailedroute`, `finish`. These matter because ORFS names metrics by namespace
    (`globalroute__timing__setup__ws`) while the file on disk is `5_1_grt.json`.
 3. an everyday **stage group** — `synth`, `floorplan`, `place`, `cts`, `route`, `finish`, which
    expand to every step in that group (`place` → all five `3_*` files)
@@ -696,8 +700,7 @@ release still resolves. An unmatched stage returns `StageNotFound` listing the s
 > occurrences across 55 distinct keys, recording `cts__utilization__before__dpl` as both `76.7787`
 > and `82.1146`. A plain `JSON.parse` keeps only the last and reports nothing. This tool returns
 > **every** value, in file order, and names those keys in `repeated_metrics` so you can tell an
-> array from a scalar without inspecting each value. Gates on such a metric are judged on the
-> **last** value (what ORFS's own checkers see) and marked `"ambiguous": true`.
+> array from a scalar without inspecting each value.
 
 **Response shape:**
 
@@ -730,25 +733,13 @@ release still resolves. An unmatched stage returns `StageNotFound` listing the s
       "error": null
     }
   ],
-  "gates": [
-    {
-      "metric": "cts__timing__setup__ws",
-      "stage": "4_1_cts",
-      "value": -0.113089,
-      "threshold": -0.0529,
-      "compare": ">=",
-      "level": "error",
-      "status": "fail"
-    }
-  ],
-  "unmatched_gates": [
-    { "metric": "finish__timing__setup__ws", "threshold": -0.0559, "compare": ">=", "level": "error" }
-  ],
+  "gates": [],
+  "unmatched_gates": [],
   "gate_summary": {
-    "total": 1, "pass": 0, "fail": 1, "unknown": 0,
-    "failing_errors": 1, "failing_warnings": 0, "unmatched": 1
+    "total": 0, "pass": 0, "fail": 0, "unknown": 0,
+    "failing_errors": 0, "failing_warnings": 0, "unmatched": 0
   },
-  "rules_path": "designs/nangate45/gcd/rules-base.json",
+  "rules_path": null,
   "message": null,
   "error": null
 }
@@ -760,9 +751,14 @@ release still resolves. An unmatched stage returns `StageNotFound` listing the s
 | `stages[].metrics_path` | `null` when the stage produced a log but no metrics file (a crashed stage) |
 | `stages[].error` | `MalformedMetrics: ...` when the JSON is half-written; the stage is still returned |
 | `stages[].log.truncated` | `true` when more diagnostics existed than the 50-per-category listed |
-| `gates[].status` | `pass`, `fail`, or `unknown` when the operator cannot apply to the value |
-| `gates[].level` | From the rule; a rule with no `level` defaults to `error`, as ORFS does |
-| `unmatched_gates` | Rules whose metric was not in the stages read — use `stage: "all"` to cover them |
+| `gates` | **Deprecated.** Always `[]` |
+| `unmatched_gates` | **Deprecated.** Always `[]` |
+| `gate_summary` | **Deprecated.** Every count is `0`; `null` when the call fails |
+| `rules_path` | **Deprecated.** Always `null` |
+
+The four deprecated fields stay in the result so that existing callers do not break. ORFS removed
+its per-design rules files, so this tool has no rules to judge. Run the ORFS `metadata` target to
+check QoR.
 
 All paths are returned **relative to the ORFS flow root**, never as absolute host paths.
 
@@ -849,14 +845,18 @@ the `clean_*` targets delete results.
   "log_truncated": true,
   "stages": [],
   "gates": [],
+  "gate_summary": null,
   "error": null
 }
 ```
 
 `status` is `running`, `succeeded`, `failed`, `cancelled` or `timed_out`, with `exit_code` always
-present once finished. **On success the result also carries `stages`, `gates` and `gate_summary`**
-in the same shape [read_orfs_metrics](#read_orfs_metrics) returns — including repeated metrics as
-arrays.
+present once finished. **On success the result also carries `stages`** in the same shape
+[read_orfs_metrics](#read_orfs_metrics) returns — including repeated metrics as arrays.
+
+`gates` and `gate_summary` are **deprecated**. `gates` is always `[]`. `gate_summary` is `null`
+until the run succeeds, and then every count is `0`. ORFS removed its per-design rules files; run
+the ORFS `metadata` target to check QoR.
 
 `current_stage` comes from the newest `*.tmp.log` in the run's logs directory: ORFS writes each
 stage to `<stem>.tmp.log` and renames it to `<stem>.log` on success, so this tracks the flow without

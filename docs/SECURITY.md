@@ -258,9 +258,8 @@ told to build*, not what the design's own configuration causes it to run.
 
 ### `read_orfs_metrics` path handling
 
-`read_orfs_metrics` reads only two locations under the ORFS flow root — the stage metrics and logs
-in `logs/<platform>/<design>/<variant>/`, and `designs/<platform>/<design>/rules-base.json`. It
-writes nothing and executes nothing.
+`read_orfs_metrics` reads only one location under the ORFS flow root — the stage metrics and logs
+in `logs/<platform>/<design>/<variant>/`. It writes nothing and executes nothing.
 
 - `design` and `variant` are validated as single path segments (`validatePathSegment`), so
   separators, `..`, null bytes and glob characters are rejected.
