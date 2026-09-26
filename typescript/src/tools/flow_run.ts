@@ -9,12 +9,10 @@ import { DEFAULT_RECENT_LINES } from "../flow/run_progress.js";
 import { validatePathSegment } from "../utils/path_security.js";
 import { BaseTool } from "./base.js";
 import {
-  evaluateGates,
   parseMetricsPreservingDuplicates,
   resolvePlatform,
   resolveStages,
 } from "./orfs_metrics.js";
-import type { GateRule } from "./orfs_metrics.js";
 
 /**
  * Make targets this server will run.
@@ -86,13 +84,10 @@ export function validateOverrides(
   return clean;
 }
 
-/** Metrics and gate verdicts for a finished run, reusing the read_orfs_metrics machinery. */
+/** Metrics for a finished run, reusing the read_orfs_metrics machinery. */
 function collectResults(job: FlowJob): {
   stages: Array<{ stage: string; metrics: Record<string, unknown>; repeatedMetrics: string[] }>;
-  gates: unknown[];
-  gateSummary: Record<string, number> | null;
 } {
-  const settings = getSettings();
   let stems: string[] = [];
   try {
     stems = fs
@@ -101,7 +96,7 @@ function collectResults(job: FlowJob): {
       .map((e) => e.slice(0, -".json".length))
       .sort();
   } catch {
-    return { stages: [], gates: [], gateSummary: null };
+    return { stages: [] };
   }
 
   // Only count metrics this run actually produced. A `make` that finds its
@@ -128,30 +123,7 @@ function collectResults(job: FlowJob): {
     }
   });
 
-  let rules: Record<string, GateRule> = {};
-  try {
-    rules = JSON.parse(
-      fs.readFileSync(
-        path.join(settings.flowPath, "designs", job.spec.platform, job.spec.design, "rules-base.json"),
-        "utf8",
-      ),
-    ) as Record<string, GateRule>;
-  } catch {
-    rules = {};
-  }
-
-  const { gates } = evaluateGates(stages, rules);
-  const failing = gates.filter((g) => g.status === "fail");
-  return {
-    stages,
-    gates,
-    gateSummary: {
-      total: gates.length,
-      pass: gates.filter((g) => g.status === "pass").length,
-      fail: failing.length,
-      failingErrors: failing.filter((g) => g.level === "error").length,
-    },
-  };
+  return { stages };
 }
 
 /** Shared serialisation for a job, with progress and (when finished) results. */
@@ -187,8 +159,10 @@ function describeJob(
     progress: view.progress,
     recentLines: view.recentLines,
     stages: results?.stages ?? [],
-    gates: results?.gates ?? [],
-    gateSummary: results?.gateSummary ?? null,
+    // Deprecated: ORFS removed its per-design rules files, so no gates are
+    // judged. Kept so that the result shape does not change.
+    gates: [],
+    gateSummary: results === null ? null : { total: 0, pass: 0, fail: 0, failingErrors: 0 },
     error: job.error,
   };
 }

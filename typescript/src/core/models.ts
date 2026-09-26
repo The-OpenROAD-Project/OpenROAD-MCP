@@ -258,9 +258,16 @@ export const OrfsMetricsResult = z.object({
   logsPath: z.string().nullable().default(null),
   stages: z.array(z.custom<OrfsStageMetrics>()).default([]),
   availableStages: z.array(z.string()).default([]),
+  /**
+   * @deprecated Always empty. ORFS removed its per-design rules files. Run the
+   * ORFS `metadata` target to check QoR.
+   */
   gates: z.array(z.custom<unknown>()).default([]),
+  /** @deprecated Always empty. See `gates`. */
   unmatchedGates: z.array(z.custom<unknown>()).default([]),
+  /** @deprecated All counts are zero on success, and `null` on failure. See `gates`. */
   gateSummary: z.custom<unknown>().nullable().default(null),
+  /** @deprecated Always `null`. See `gates`. */
   rulesPath: z.string().nullable().default(null),
   message: z.string().nullable().default(null),
   error: errorField,

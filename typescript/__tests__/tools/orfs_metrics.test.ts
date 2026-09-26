@@ -58,7 +58,6 @@ function createFlow(opts: {
   stems?: string[];
   metrics?: Record<string, string>;
   logs?: Record<string, string>;
-  rules?: Record<string, unknown> | null;
 } = {}) {
   const platform = opts.platform ?? "nangate45";
   const design = opts.design ?? "gcd";
@@ -76,12 +75,6 @@ function createFlow(opts: {
   }
   for (const [stem, body] of Object.entries(opts.logs ?? {})) {
     fs.writeFileSync(path.join(logsDir, `${stem}.log`), body);
-  }
-  if (opts.rules !== null) {
-    fs.writeFileSync(
-      path.join(designDir, "rules-base.json"),
-      JSON.stringify(opts.rules ?? {}),
-    );
   }
   mockSettings(flowPath, { [platform]: [design] });
   return { flowPath, logsDir, designDir };
@@ -180,8 +173,8 @@ describe("resolveStages", () => {
   });
 
   it("maps an ORFS metric namespace onto the file that holds it", () => {
-    // A caller reading rules-base.json sees globalroute__*, but the file on
-    // disk is 5_1_grt.json -- unguessable without this mapping.
+    // A metric is named globalroute__*, but the file on disk is
+    // 5_1_grt.json -- unguessable without this mapping.
     expect(resolveStages(REAL_STEMS, "globalroute")).toEqual(["5_1_grt"]);
     expect(resolveStages(REAL_STEMS, "detailedroute")).toEqual(["5_2_route"]);
     expect(resolveStages(REAL_STEMS, "placeopt")).toEqual(["3_4_place_resized"]);
@@ -206,71 +199,22 @@ describe("resolveStages", () => {
   });
 });
 
-describe("compareGate and evaluateGates", () => {
-  it("applies each comparison operator, including string equality", () => {
-    expect(compareGate(0, "<=", 0)).toBe(true);
-    expect(compareGate(1, "<=", 0)).toBe(false);
-    expect(compareGate(-0.11, ">=", -0.05)).toBe(false);
-    expect(compareGate(-0.01, ">=", -0.05)).toBe(true);
-    expect(compareGate("061b4cd4", "==", "061b4cd4")).toBe(true);
-    expect(compareGate("aaa", "==", "bbb")).toBe(false);
+describe("deprecated gate exports", () => {
+  it("evaluateGates judges nothing, even when given rules", () => {
+    expect(
+      evaluateGates(
+        [{ stage: "4_1_cts", metrics: { "cts__timing__setup__ws": -0.1 } }],
+        { "cts__timing__setup__ws": { value: -0.05, compare: ">=" } },
+      ),
+    ).toEqual({ gates: [], unmatched: [] });
   });
 
-  it("returns null when a numeric comparison gets a non-number", () => {
+  it("compareGate still applies each operator", () => {
+    expect(compareGate(0, "<=", 0)).toBe(true);
+    expect(compareGate(-0.11, ">=", -0.05)).toBe(false);
+    expect(compareGate("abc", "==", "abc")).toBe(true);
     expect(compareGate("x", ">=", 1)).toBeNull();
     expect(compareGate(1, "??", 1)).toBeNull();
-  });
-
-  it("defaults a rule with no level to error, as ORFS does", () => {
-    const { gates } = evaluateGates(
-      [{ stage: "4_1_cts", metrics: { "cts__design__violations": 0 } }],
-      { "cts__design__violations": { value: 0, compare: "==" } },
-    );
-    expect(gates[0]!.level).toBe("error");
-    expect(gates[0]!.status).toBe("pass");
-  });
-
-  it("honours an explicit level", () => {
-    const { gates } = evaluateGates(
-      [{ stage: "1_synth", metrics: { "synth__netlist__hash": "abc" } }],
-      { "synth__netlist__hash": { value: "def", compare: "==", level: "warning" } },
-    );
-    expect(gates[0]).toMatchObject({ level: "warning", status: "fail" });
-  });
-
-  it("judges a repeated metric on its last value and flags it as ambiguous", () => {
-    const { gates } = evaluateGates(
-      [{ stage: "4_1_cts", metrics: { "cts__utilization__before__dpl": [76.7787, 82.1146] } }],
-      { "cts__utilization__before__dpl": { value: 80, compare: "<=" } },
-    );
-    expect(gates[0]!.value).toBe(82.1146);
-    expect(gates[0]!.status).toBe("fail");
-    expect(gates[0]!.ambiguous).toBe(true);
-  });
-
-  it("reports a rule whose metric never appeared rather than dropping it", () => {
-    const { gates, unmatched } = evaluateGates(
-      [{ stage: "4_1_cts", metrics: { "cts__design__violations": 0 } }],
-      {
-        "cts__design__violations": { value: 0, compare: "==" },
-        "finish__timing__setup__ws": { value: -0.05, compare: ">=" },
-      },
-    );
-    expect(gates).toHaveLength(1);
-    expect(unmatched).toEqual([
-      { metric: "finish__timing__setup__ws", threshold: -0.05, compare: ">=", level: "error" },
-    ]);
-  });
-
-  it("records which stage a gate was judged against", () => {
-    const { gates } = evaluateGates(
-      [
-        { stage: "4_1_cts", metrics: { "cts__timing__setup__ws": -0.1 } },
-        { stage: "6_report", metrics: { "finish__timing__setup__ws": -0.01 } },
-      ],
-      { "finish__timing__setup__ws": { value: -0.05, compare: ">=" } },
-    );
-    expect(gates[0]!.stage).toBe("6_report");
   });
 });
 
@@ -322,46 +266,31 @@ describe("ReadOrfsMetricsTool", () => {
     expect(result.stages[0].repeated_metrics).toEqual(["cts__utilization__before__dpl"]);
   });
 
-  it("evaluates rules-base gates against the metrics it read", async () => {
-    createFlow({
-      metrics: {
-        "4_1_cts": `{"cts__timing__setup__ws": -0.113089, "cts__design__violations": 0}`,
-      },
-      rules: {
-        "cts__timing__setup__ws": { value: -0.0529, compare: ">=" },
-        "cts__design__violations": { value: 0, compare: "==" },
-        "finish__timing__setup__ws": { value: -0.05, compare: ">=" },
-      },
-    });
+  it("keeps the deprecated gate fields in the result, empty", async () => {
+    createFlow({ metrics: { "4_1_cts": `{"cts__timing__setup__ws": -0.113089}` } });
 
     const result = await read(tool(), "gcd", "cts");
 
-    const byMetric = Object.fromEntries(result.gates.map((g: { metric: string }) => [g.metric, g]));
-    expect(byMetric["cts__timing__setup__ws"]).toMatchObject({
-      value: -0.113089, threshold: -0.0529, compare: ">=", level: "error", status: "fail",
+    expect(result.gates).toEqual([]);
+    expect(result.unmatched_gates).toEqual([]);
+    expect(result.gate_summary).toEqual({
+      total: 0, pass: 0, fail: 0, unknown: 0,
+      failing_errors: 0, failing_warnings: 0, unmatched: 0,
     });
-    expect(byMetric["cts__design__violations"].status).toBe("pass");
-    expect(result.unmatched_gates).toHaveLength(1);
-    expect(result.gate_summary).toMatchObject({ pass: 1, fail: 1, failing_errors: 1, unmatched: 1 });
+    expect(result.rules_path).toBeNull();
+    expect(result.message).toBeNull();
   });
 
-  it("covers every gate when reading all stages", async () => {
-    createFlow({
-      metrics: {
-        "4_1_cts": `{"cts__timing__setup__ws": -0.11}`,
-        "6_report": `{"finish__timing__setup__ws": -0.01}`,
-      },
-      rules: {
-        "cts__timing__setup__ws": { value: -0.05, compare: ">=" },
-        "finish__timing__setup__ws": { value: -0.05, compare: ">=" },
-      },
-    });
+  it("keeps the deprecated gate fields in a failure result, empty", async () => {
+    createFlow({ stems: ["4_1_cts"] });
 
-    const result = await read(tool(), "gcd");
+    const result = await read(tool(), "gcd", "nonsense");
 
-    expect(result.stage).toBe("all");
-    expect(result.unmatched_gates).toHaveLength(0);
-    expect(result.gate_summary).toMatchObject({ total: 2, pass: 1, fail: 1 });
+    expect(result.error).toBe("StageNotFound");
+    expect(result.gates).toEqual([]);
+    expect(result.unmatched_gates).toEqual([]);
+    expect(result.gate_summary).toBeNull();
+    expect(result.rules_path).toBeNull();
   });
 
   it("extracts ORFS's tagged diagnostics from the stage log", async () => {
@@ -439,15 +368,6 @@ describe("ReadOrfsMetricsTool", () => {
     expect(result.message).toContain("base");
   });
 
-  it("says so when the design has no rules-base.json", async () => {
-    createFlow({ stems: ["4_1_cts"], rules: null });
-
-    const result = await read(tool(), "gcd", "cts");
-
-    expect(result.gates).toEqual([]);
-    expect(result.message).toMatch(/No rules-base\.json/);
-  });
-
   it("rejects path traversal in design and variant", async () => {
     createFlow({ stems: ["4_1_cts"] });
 
@@ -464,6 +384,5 @@ describe("ReadOrfsMetricsTool", () => {
 
     expect(result.logs_path).toBe("logs/nangate45/gcd/base");
     expect(result.stages[0].metrics_path).toBe("logs/nangate45/gcd/base/4_1_cts.json");
-    expect(result.rules_path).toBe("designs/nangate45/gcd/rules-base.json");
   });
 });
