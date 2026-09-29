@@ -50,7 +50,7 @@ for per-client configuration for Cursor, Claude Code, GitHub Copilot, and 25+ ot
 | `list_report_images` | List `.webp` report images from an ORFS run |
 | `read_report_image` | Read a report image and return it as a viewable image block |
 | `grep_session_output` | Search output of commands already run in a session |
-| `read_orfs_metrics` | Read a design's per-stage metrics, rules-base gates and log diagnostics |
+| `read_orfs_metrics` | Read a design's per-stage metrics and log diagnostics |
 | `run_orfs_stage` | Run an ORFS flow stage via make as a tracked background job |
 | `get_orfs_job` | Poll a flow run: progress, log tail, and metrics once it finishes |
 | `cancel_orfs_job` | Terminate a flow run and every process it spawned |

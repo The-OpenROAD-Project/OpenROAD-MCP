@@ -316,14 +316,17 @@ export function createMcpServer(manager: OpenROADManager = defaultManager): McpS
     "read_orfs_metrics",
     {
       description:
-        "Read an ORFS design's per-stage metrics, its rules-base.json gate thresholds evaluated " +
-        "against those metrics, and the tagged errors/warnings from each stage log. Prefer this " +
+        "Read an ORFS design's per-stage metrics and the tagged errors/warnings from each stage " +
+        "log. It does not judge QoR: ORFS checks QoR against its dashboard in the `metadata` " +
+        "target, which run_orfs_stage can run. Prefer this " +
         "over shelling out to find/cat/jq/grep in the flow tree. `stage` accepts a step name " +
         "(cts, place, route, floorplan, synth, finish), an ORFS metric namespace " +
         "(globalroute, detailedroute, placeopt, detailedplace), an exact file stem (4_1_cts), or " +
         "`all` (the default). `platform` is inferred from `design` when unambiguous. Note that " +
         "ORFS records some metrics once per sub-run: any key listed in `repeated_metrics` has an " +
-        "array of values in file order rather than a scalar.",
+        "array of values in file order rather than a scalar. Deprecated: `gates`, " +
+        "`unmatched_gates`, `gate_summary` and `rules_path` are always empty, because ORFS " +
+        "removed its per-design rules files; run the ORFS `metadata` target to check QoR.",
       inputSchema: {
         design: z.string(),
         stage: z.string().optional(),
@@ -358,8 +361,9 @@ export function createMcpServer(manager: OpenROADManager = defaultManager): McpS
         "get the finished result inline when the stage is short. `overrides` become make " +
         "command-line assignments (e.g. {\"CTS_CLUSTER_SIZE\": \"20\"}), which take precedence " +
         "over both the environment and the Makefile. Poll with get_orfs_job for live progress, " +
-        "and the parsed stage metrics and gate verdicts once it finishes. Set dry_run to see what " +
-        "make would do without running it.",
+        "and the parsed stage metrics once it finishes. Set dry_run to see what " +
+        "make would do without running it. Deprecated: `gates` and `gate_summary` in the " +
+        "result are always empty; run the ORFS `metadata` target to check QoR.",
       inputSchema: {
         design: z.string(),
         stage: z.string(),
@@ -400,8 +404,9 @@ export function createMcpServer(manager: OpenROADManager = defaultManager): McpS
       description:
         "Poll a flow run started by run_orfs_stage: status, elapsed time, the ORFS stage currently " +
         "executing, detailed-route iteration and live DRC violation count, CPU and memory, and the " +
-        "tail of the run log. Once the run succeeds it also carries the parsed stage metrics and " +
-        "rules-base gate verdicts. Omit job_id to list every run.",
+        "tail of the run log. Once the run succeeds it also carries the parsed stage metrics. " +
+        "Omit job_id to list every run. Deprecated: `gates` and `gate_summary` are always " +
+        "empty; run the ORFS `metadata` target to check QoR.",
       inputSchema: {
         job_id: z.string().optional(),
         recent_lines: z.number().int().positive().optional(),

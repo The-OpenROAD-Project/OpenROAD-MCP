@@ -14,10 +14,10 @@ import { BaseTool } from "./base.js";
 /**
  * Stage aliases, tried before a plain substring match.
  *
- * ORFS rule files key metrics by namespace (`globalroute__*`) while the files
- * on disk are numbered by step (`5_1_grt.json`), so a caller who has read
- * rules-base.json has no way to guess the filename. These map both the
- * namespaces and the everyday stage names onto stem fragments.
+ * ORFS metric keys carry a namespace (`globalroute__*`) while the files on
+ * disk are numbered by step (`5_1_grt.json`), so a caller who knows a metric
+ * name has no way to guess the filename. These map both the namespaces and
+ * the everyday stage names onto stem fragments.
  */
 const NAMESPACE_ALIASES: Record<string, string> = {
   placeopt: "place_resized",
@@ -272,29 +272,17 @@ export function resolveStages(stems: string[], stage: string): string[] {
   return stems.filter((s) => s.toLowerCase().includes(wanted));
 }
 
+/**
+ * @deprecated ORFS removed its per-design rules files, so there are no rules
+ * to judge. Run the ORFS `metadata` target to check QoR.
+ */
 export interface GateRule {
   value: unknown;
   compare: string;
   level?: string;
 }
 
-/** Compare a metric against a rules-base threshold. */
-export function compareGate(value: unknown, compare: string, threshold: unknown): boolean | null {
-  if (compare === "==") return value === threshold;
-  if (compare === "!=") return value !== threshold;
-  if (typeof value !== "number" || typeof threshold !== "number") return null;
-  if (compare === ">=") return value >= threshold;
-  if (compare === "<=") return value <= threshold;
-  if (compare === ">") return value > threshold;
-  if (compare === "<") return value < threshold;
-  return null;
-}
-
-interface StageMetrics {
-  stage: string;
-  metrics: Record<string, MetricValue>;
-}
-
+/** @deprecated See {@link GateRule}. */
 export interface GateVerdict {
   metric: string;
   stage: string;
@@ -308,48 +296,46 @@ export interface GateVerdict {
 }
 
 /**
- * Evaluate every rule whose metric appears in the stages that were read.
+ * Compare a metric value against a threshold with an ORFS rule operator.
  *
- * Matching on presence rather than a namespace-to-file table means a rule is
- * checked wherever its metric turns up, and `stage: "all"` covers the lot.
+ * @deprecated Nothing in this server calls it now. See {@link GateRule}.
+ */
+export function compareGate(value: unknown, compare: string, threshold: unknown): boolean | null {
+  if (compare === "==") return value === threshold;
+  if (compare === "!=") return value !== threshold;
+  if (typeof value !== "number" || typeof threshold !== "number") return null;
+  if (compare === ">=") return value >= threshold;
+  if (compare === "<=") return value <= threshold;
+  if (compare === ">") return value > threshold;
+  if (compare === "<") return value < threshold;
+  return null;
+}
+
+/**
+ * Kept so that existing imports still compile. It judges nothing.
+ *
+ * @deprecated Always returns no gates and no unmatched rules. See {@link GateRule}.
  */
 export function evaluateGates(
-  stages: StageMetrics[],
-  rules: Record<string, GateRule>,
+  _stages: Array<{ stage: string; metrics: Record<string, MetricValue> }>,
+  _rules: Record<string, GateRule>,
 ): { gates: GateVerdict[]; unmatched: Array<{ metric: string; threshold: unknown; compare: string; level: string }> } {
-  const gates: GateVerdict[] = [];
-  const unmatched: Array<{ metric: string; threshold: unknown; compare: string; level: string }> = [];
-
-  for (const [metric, rule] of Object.entries(rules)) {
-    // ORFS treats a rule with no explicit level as an error-level gate.
-    const level = rule.level ?? "error";
-    const owner = stages.find((s) => metric in s.metrics);
-    if (owner === undefined) {
-      unmatched.push({ metric, threshold: rule.value, compare: rule.compare, level });
-      continue;
-    }
-
-    const raw = owner.metrics[metric];
-    // A repeated key was recorded once per sub-run; judge the final value,
-    // which is what ORFS's own checkers see, and say that it was ambiguous.
-    const ambiguous = Array.isArray(raw);
-    const value = ambiguous ? (raw as unknown[])[(raw as unknown[]).length - 1] : raw;
-
-    const result = compareGate(value, rule.compare, rule.value);
-    gates.push({
-      metric,
-      stage: owner.stage,
-      value,
-      threshold: rule.value,
-      compare: rule.compare,
-      level,
-      status: result === null ? "unknown" : result ? "pass" : "fail",
-      ...(ambiguous && { ambiguous: true }),
-    });
-  }
-
-  return { gates, unmatched };
+  return { gates: [], unmatched: [] };
 }
+
+/**
+ * The `gate_summary` that `read_orfs_metrics` returns on success.
+ * Deprecated: every count is zero because no gates are judged.
+ */
+const EMPTY_GATE_SUMMARY = {
+  total: 0,
+  pass: 0,
+  fail: 0,
+  unknown: 0,
+  failingErrors: 0,
+  failingWarnings: 0,
+  unmatched: 0,
+} as const;
 
 export interface LogDiagnostics {
   path: string;
@@ -405,6 +391,7 @@ function failure(error: string, message: string): string {
     logs_path: null,
     stages: [],
     available_stages: [],
+    // Deprecated fields, kept so that the result shape does not change.
     gates: [],
     unmatched_gates: [],
     gate_summary: null,
@@ -415,8 +402,10 @@ function failure(error: string, message: string): string {
 }
 
 /**
- * Read ORFS per-stage metrics, the design's rules-base gates, and the tagged
- * diagnostics from each stage log.
+ * Read ORFS per-stage metrics and the tagged diagnostics from each stage log.
+ *
+ * It does not judge QoR. ORFS checks a run against the QoR dashboard in
+ * `make metadata` and keeps no rule thresholds in the flow tree.
  *
  * This exists because the capability study found ~39% of all shell calls were
  * agents doing exactly this by hand with find/cat/jq/grep -- the single
@@ -520,26 +509,6 @@ export class ReadOrfsMetricsTool extends BaseTool {
       });
     }
 
-    // Gates
-    const rulesPath = path.join(flowPath, "designs", resolvedPlatform, design, "rules-base.json");
-    let rules: Record<string, GateRule> = {};
-    let relRules: string | null = null;
-    let message: string | null = null;
-
-    if (fs.existsSync(rulesPath)) {
-      relRules = path.relative(flowPath, rulesPath);
-      try {
-        rules = JSON.parse(fs.readFileSync(rulesPath, "utf8")) as Record<string, GateRule>;
-      } catch (e) {
-        message = `rules-base.json could not be parsed: ${(e as Error).message}`;
-      }
-    } else {
-      message = `No rules-base.json for ${resolvedPlatform}/${design}; no gates to evaluate.`;
-    }
-
-    const { gates, unmatched } = evaluateGates(stages, rules);
-    const failing = gates.filter((g) => g.status === "fail");
-
     return this.formatResult(
       OrfsMetricsResult.parse({
         platform: resolvedPlatform,
@@ -549,19 +518,11 @@ export class ReadOrfsMetricsTool extends BaseTool {
         logsPath: relLogs,
         stages,
         availableStages: allStems,
-        gates,
-        unmatchedGates: unmatched,
-        gateSummary: {
-          total: gates.length,
-          pass: gates.filter((g) => g.status === "pass").length,
-          fail: failing.length,
-          unknown: gates.filter((g) => g.status === "unknown").length,
-          failingErrors: failing.filter((g) => g.level === "error").length,
-          failingWarnings: failing.filter((g) => g.level !== "error").length,
-          unmatched: unmatched.length,
-        },
-        rulesPath: relRules,
-        message,
+        // Deprecated fields, kept so that the result shape does not change.
+        gates: [],
+        unmatchedGates: [],
+        gateSummary: { ...EMPTY_GATE_SUMMARY },
+        rulesPath: null,
       }) as unknown as Record<string, unknown>,
     );
   }

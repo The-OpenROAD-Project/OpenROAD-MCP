@@ -152,6 +152,9 @@ describe("RunOrfsStageTool", () => {
 
     expect(result.status).toBe("running");
     expect(result.job_id).toHaveLength(8);
+    // Deprecated gate fields stay in the result, empty.
+    expect(result.gates).toEqual([]);
+    expect(result.gate_summary).toBeNull();
     await registry.shutdown();
   });
 
@@ -228,13 +231,9 @@ describe("RunOrfsStageTool", () => {
     await registry.shutdown();
   });
 
-  it("attaches stage metrics and gate verdicts once a run succeeds", async () => {
+  it("attaches stage metrics once a run succeeds", async () => {
     const logsDir = path.join(tmpDir, "logs", "nangate45", "gcd", "base");
     fs.mkdirSync(logsDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(tmpDir, "designs", "nangate45", "gcd", "rules-base.json"),
-      JSON.stringify({ "cts__timing__setup__ws": { value: -0.0529, compare: ">=" } }),
-    );
     // Written by the run itself, as ORFS would: results are only attributed to
     // a job when the stage file postdates the job's start.
     const registry = new FlowJobRegistry(
@@ -254,8 +253,10 @@ describe("RunOrfsStageTool", () => {
     expect(result.stages[0].stage).toBe("4_1_cts");
     // Repeated keys survive as arrays, exactly as read_orfs_metrics returns them.
     expect(result.stages[0].metrics.cts__utilization__before__dpl).toEqual([76.7787, 82.1146]);
-    expect(result.gates[0]).toMatchObject({ metric: "cts__timing__setup__ws", status: "fail" });
-    expect(result.gate_summary.fail).toBe(1);
+    expect(result.stages[0].metrics.cts__timing__setup__ws).toBe(-0.113089);
+    // Deprecated gate fields stay in the result, empty: no gates are judged.
+    expect(result.gates).toEqual([]);
+    expect(result.gate_summary).toEqual({ total: 0, pass: 0, fail: 0, failing_errors: 0 });
   });
 });
 
@@ -270,10 +271,6 @@ describe("GetOrfsJobTool and CancelOrfsJobTool", () => {
     fs.writeFileSync(stale, `{"cts__timing__setup__ws": -0.1}`);
     const old = new Date(Date.now() - 3_600_000);
     fs.utimesSync(stale, old, old);
-    fs.writeFileSync(
-      path.join(tmpDir, "designs", "nangate45", "gcd", "rules-base.json"),
-      JSON.stringify({ "cts__timing__setup__ws": { value: -0.5, compare: ">=" } }),
-    );
     const registry = new FlowJobRegistry(stub("noop.sh", "echo \"Nothing to be done\""));
 
     const result = JSON.parse(
@@ -284,7 +281,6 @@ describe("GetOrfsJobTool and CancelOrfsJobTool", () => {
 
     expect(result.status).toBe("succeeded");
     expect(result.stages).toEqual([]);
-    expect(result.gates).toEqual([]);
   });
 
   it("reports metrics the run did write", async () => {
