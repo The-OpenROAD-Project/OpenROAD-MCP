@@ -1,7 +1,7 @@
 version: 2
 
 # There is no uv entry. PR #168 removed the Python distribution and its
-# pyproject.toml, so uv has nothing to resolve. The root uv.lock is an orphan.
+# pyproject.toml, so the repository has no Python dependencies to update.
 updates:
   - package-ecosystem: npm
     directory: /typescript
