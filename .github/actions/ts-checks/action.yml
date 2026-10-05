@@ -13,6 +13,10 @@ runs:
         cache: "npm"
         cache-dependency-path: typescript/package-lock.json
 
+    - name: Install npm 12
+      run: npm install -g npm@12.2.0
+      shell: bash
+
     - run: npm ci
       shell: bash
       working-directory: typescript

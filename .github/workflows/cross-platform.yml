@@ -34,6 +34,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: typescript/package-lock.json
 
+      - name: Install npm 12
+        run: npm install -g npm@12.2.0
+
       # The scripts cd into typescript/ themselves and run npm ci + npm run
       # build, so they must run from the repo root, not the job's typescript/
       # default. Node is already on PATH from setup-node above; the scripts

@@ -70,6 +70,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: typescript/package-lock.json
 
+      - name: Install npm 12
+        run: npm install -g npm@12.2.0
+
       - run: npm ci
 
       - run: npm run test:performance
