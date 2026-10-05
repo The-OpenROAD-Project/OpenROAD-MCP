@@ -49,8 +49,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false  # never use caching in release builds
 
-      - name: Ensure npm supports trusted publishing
-        run: npm install -g npm@^11.5.1
+      - name: Install npm 12 (trusted publishing needs npm >= 11.5.1)
+        run: npm install -g npm@12.2.0
 
       - name: Set version from tag
         run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
