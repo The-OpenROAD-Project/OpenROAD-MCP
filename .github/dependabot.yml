@@ -1,13 +1,20 @@
 version: 2
 
+# Batch routine updates for weekly review.
+# Security updates remain alert-driven and outside these groups.
+# A high version-update limit prevents the default five-PR bottleneck.
+
 # There is no uv entry. PR #168 removed the Python distribution and its
 # pyproject.toml, so the repository has no Python dependencies to update.
 updates:
   - package-ecosystem: npm
     directory: /typescript
     schedule:
-      interval: daily
-    open-pull-requests-limit: 5
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 1000
     cooldown:
       default-days: 7
     commit-message:
@@ -15,22 +22,33 @@ updates:
       prefix-development: build(deps-dev)
     groups:
       npm:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: daily
-    open-pull-requests-limit: 5
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 1000
     cooldown:
       default-days: 7
     commit-message:
       prefix: build(deps)
     groups:
       actions:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
 
   # The entry above scans .github/workflows only, so composite actions need
   # their own entry. Do not merge the two.
@@ -38,29 +56,43 @@ updates:
     directories:
       - /.github/actions/*
     schedule:
-      interval: daily
-    open-pull-requests-limit: 5
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 1000
     cooldown:
       default-days: 7
     commit-message:
       prefix: build(deps)
     groups:
       composite-actions:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: docker
     directories:
       - /
       - /.devcontainer
     schedule:
-      interval: daily
-    open-pull-requests-limit: 5
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 1000
     cooldown:
       default-days: 7
     commit-message:
       prefix: build(deps)
     groups:
       images:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
