@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-26.04]
         test-type: [lint, core, interactive, integration, tools]
     steps:
       - run: echo "deprecated — replaced by TypeScript CI"

@@ -12,7 +12,7 @@ jobs:
   tag:
     name: Create release tag
     if: "startsWith(github.event.head_commit.message, 'chore: release v')"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
