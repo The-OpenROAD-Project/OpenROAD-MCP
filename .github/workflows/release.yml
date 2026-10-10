@@ -13,7 +13,7 @@ permissions:
 jobs:
   test:
     name: Run tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: typescript
@@ -32,7 +32,7 @@ jobs:
   publish-npm:
     name: Publish to npm
     needs: [test, docker-test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write  # for npm OIDC trusted publishing + provenance
@@ -75,7 +75,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     needs: [test, docker-test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
@@ -106,7 +106,7 @@ jobs:
   publish-mcp-registry:
     name: Publish to MCP Registry
     needs: [publish-npm, publish-docker]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       id-token: write
       contents: read
