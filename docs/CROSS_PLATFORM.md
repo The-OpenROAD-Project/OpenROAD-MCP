@@ -1,6 +1,7 @@
 # Cross-Platform Guide — OpenROAD MCP
 
-The server runs on **Ubuntu 22.04+**, **Ubuntu 24.04**, and **macOS 14+**. Because this MCP server depends on native C++ modules (`node-pty` for terminal sessions and `sharp` for image processing), you must have a C++ toolchain installed to build it from source.
+The server is tested on **Ubuntu 24.04**, **Ubuntu 26.04**, and **macOS 14+**.
+Because this MCP server depends on native C++ modules (`node-pty` for terminal sessions and `sharp` for image processing), you must have a C++ toolchain installed to build it from source.
 
 This guide covers Node.js setup, native module build requirements, and known platform-specific issues.
 
@@ -15,7 +16,7 @@ This guide covers Node.js setup, native module build requirements, and known pla
 
 ---
 
-## Ubuntu 22.04 / 24.04
+## Ubuntu 24.04 / 26.04
 
 ### Install Node.js 22
 
