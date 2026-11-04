@@ -38,7 +38,7 @@
     "@types/pidusage": "^2.0.5",
     "@types/sharp": "^0.32.0",
     "@vitest/coverage-v8": "^4.1.12",
-    "oxlint": "1.89.0",
+    "oxlint": "1.90.0",
     "tsx": "^4.22.4",
     "typescript": "7.0.2",
     "vitest": "^4.1.12"
