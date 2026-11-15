@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# setup-ubuntu.sh — Install OpenROAD-MCP dependencies on Ubuntu (22.04/24.04)
+# setup-ubuntu.sh — Install OpenROAD-MCP dependencies on Ubuntu (24.04/26.04)
 # =============================================================================
 set -euo pipefail
 
