@@ -46,6 +46,13 @@ const SENTINEL_COMMAND = (nonce: string): string => `puts "[join {ORMCP DONE ${n
 /** Matches any sentinel, including a stale one left by a timed-out command. */
 const ANY_SENTINEL_LINE = /ORMCP[-\s]DONE[-\s][0-9a-z]+/i;
 
+/** Pieces of a sentinel line, used to cut it out of a segment it shares with
+ * real output without discarding that output. */
+const SENTINEL_TOKEN_HEAD = /ORMCP[-\s]DONE[-\s]/i;
+const SENTINEL_ECHO_PREFIX = 'puts "[join {';
+const SENTINEL_ECHO_SUFFIX = '} -]"';
+const STALE_NONCE = /^[0-9a-z]+/;
+
 /**
  * Startup probe. Uses the same runtime-assembly trick as the sentinel for the
  * same reason: a probe whose token appears verbatim in its own source would be
@@ -353,7 +360,7 @@ export class InteractiveSession {
 
     const executionTime = (Date.now() - startTime) / 1000;
     const output = this._withTruncationNotice(
-      ANSIDecoder.cleanOpenroadOutput(this._stripSentinelLines(text)),
+      ANSIDecoder.cleanOpenroadOutput(this._stripSentinelLines(text, nonce)),
       bytesDiscarded,
       totalBytes,
       text.length,
@@ -449,15 +456,71 @@ export class InteractiveSession {
   /** Remove sentinel echo and marker lines so callers never see the plumbing.
    * Matches any sentinel, not just the current one, so a marker left behind by
    * a previously timed-out command cannot leak into a later result. */
-  private _stripSentinelLines(text: string): string {
+  private _stripSentinelLines(text: string, nonce?: string): string {
     if (!ANY_SENTINEL_LINE.test(text)) return text;
     // Terminals delimit with CR, LF or CRLF, and a line editor emits bare CRs
     // when it redraws. Splitting on LF alone would leave the sentinel sharing a
     // segment with real output and discard both.
+    //
+    // The sentinel is typed ahead while the user command runs, so its echo can
+    // be interleaved with that command's output. Only the sentinel text is cut
+    // from a segment; whatever else shares the segment is real output and kept.
+    const echoTail = nonce === undefined ? undefined : `${nonce}${SENTINEL_ECHO_SUFFIX}`;
     return text
       .split(/\r\n|[\r\n]/)
-      .filter((line) => !ANY_SENTINEL_LINE.test(line))
+      .flatMap((line) => {
+        if (!ANY_SENTINEL_LINE.test(line)) {
+          return echoTail !== undefined && this._isSentinelEchoTail(line, echoTail) ? [] : [line];
+        }
+        const remainder = this._removeSentinelText(line, nonce);
+        return remainder.trim() === "" ? [] : [remainder];
+      })
       .join("\n");
+  }
+
+  /** Cut every sentinel token, plus the echoed Tcl around it, out of a line. */
+  private _removeSentinelText(line: string, nonce: string | undefined): string {
+    let result = line;
+    for (;;) {
+      const match = SENTINEL_TOKEN_HEAD.exec(result);
+      if (!match) return result;
+      let start = match.index;
+      if (result.slice(start - SENTINEL_ECHO_PREFIX.length, start) === SENTINEL_ECHO_PREFIX) {
+        start -= SENTINEL_ECHO_PREFIX.length;
+      }
+      const isEcho = !match[0].includes("-");
+      const end = this._sentinelTokenEnd(result, match.index + match[0].length, nonce, isEcho);
+      result = result.slice(0, start) + result.slice(end);
+    }
+  }
+
+  /**
+   * Find where a sentinel token's nonce (and echoed closing syntax) ends.
+   * With the current nonce known, only the characters that actually belong to
+   * it are consumed, so output interleaved right after a truncated echo stays.
+   */
+  private _sentinelTokenEnd(
+    line: string,
+    nonceStart: number,
+    nonce: string | undefined,
+    isEcho: boolean,
+  ): number {
+    const wholeTokenEnd = nonceStart + (STALE_NONCE.exec(line.slice(nonceStart))?.[0].length ?? 0);
+    const isWholeToken = isEcho
+      ? line.startsWith(SENTINEL_ECHO_SUFFIX, wholeTokenEnd)
+      : wholeTokenEnd === line.length || /\s/.test(line[wholeTokenEnd] ?? "");
+    let end = wholeTokenEnd;
+    if (!isWholeToken && nonce !== undefined) {
+      end = nonceStart;
+      while (end - nonceStart < nonce.length && line[end] === nonce[end - nonceStart]) end++;
+    }
+    return line.startsWith(SENTINEL_ECHO_SUFFIX, end) ? end + SENTINEL_ECHO_SUFFIX.length : end;
+  }
+
+  /** True for the tail of a sentinel echo split off by interleaved output. */
+  private _isSentinelEchoTail(line: string, echoTail: string): boolean {
+    const fragment = line.trim();
+    return fragment.length > SENTINEL_ECHO_SUFFIX.length && echoTail.endsWith(fragment);
   }
 
   /** Shared drain-before-reject path for a session that is already dead. */
