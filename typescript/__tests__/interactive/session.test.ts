@@ -415,6 +415,47 @@ describe("InteractiveSession", () => {
       expect(result.output).not.toContain("staleabc123");
     });
 
+    it.each([
+      ["uppercase output", "YYYYY"],
+      ["lowercase output", "abc123"],
+    ])(
+      "keeps %s that interleaves with the typed-ahead sentinel echo",
+      async (_label, commandOutput) => {
+        (mockPty.writeInput as ReturnType<typeof vi.fn>).mockImplementation((data: string) => {
+          const match = NONCE_RE.exec(data);
+          if (!match) {
+            void session.outputBuffer.append(data.replace(/\r$/, "\r\n"));
+            return;
+          }
+          const nonce = match[1]!;
+          const echo = data.replace(/\r$/, "");
+          let split = echo.indexOf(nonce) + 3;
+          while (echo[split] === commandOutput[0]) split++;
+          void session.outputBuffer.append(
+            `${echo.slice(0, split)}${commandOutput}\r\n${echo.slice(split)}\r\n`,
+          );
+          setTimeout(() => void session.outputBuffer.append(`ORMCP-DONE-${nonce}\r\n`), 10);
+        });
+
+        const result = await session.runCommand("puts [string repeat Y 5]", 2000);
+
+        expect(result.error).toBeNull();
+        expect(result.output).toBe(`puts [string repeat Y 5]\n${commandOutput}`);
+      },
+    );
+
+    it("suppresses a stale echoed sentinel that shares the current nonce's timestamp prefix", async () => {
+      wirePty({ thinkMs: 10, output: "fresh output\r\n" });
+      const staleNonce = `${Date.now().toString(36)}0abc`;
+      await session.outputBuffer.append(`puts "[join {ORMCP DONE ${staleNonce}} -]"\r\n`);
+
+      const result = await session.runCommand("report_checks", 2000);
+
+      expect(result.output).toContain("fresh output");
+      expect(result.output).not.toContain("abc");
+      expect(result.output).not.toContain("ORMCP");
+    });
+
     it("verifyResponsive rejects a session whose line editor never accepts input", async () => {
       // The VM failure: the process is alive and echoes every submitted line
       // back cleanly, but never runs it. The echo alone must not satisfy the
