@@ -1,7 +1,7 @@
 # OpenROAD MCP Server — Architecture
 
 The server is written in TypeScript and distributed via npm as `openroad-mcp`. It implements the
-Model Context Protocol over stdio (default) or Streamable HTTP, exposing 10 tools to AI clients.
+Model Context Protocol over stdio (default) or Streamable HTTP, exposing 15 tools to AI clients.
 
 ---
 
@@ -10,7 +10,7 @@ Model Context Protocol over stdio (default) or Streamable HTTP, exposing 10 tool
 ```
 typescript/src/
 ├── main.ts                    # Entry point; reads CLI args, starts transport
-├── server.ts                  # Registers all 10 MCP tools; HTTP request handler
+├── server.ts                  # Registers all 15 MCP tools; HTTP request handler
 ├── exceptions.ts              # Shared exception classes (SessionError, PTYError, …)
 ├── constants.ts               # Shared constants (MAX_COMMAND_HISTORY, timeouts, …)
 │
@@ -21,6 +21,7 @@ typescript/src/
 │
 ├── core/
 │   ├── manager.ts             # OpenROADManager: session lifecycle, executeCommand
+│   ├── flow_jobs.ts           # FlowJobRegistry: tracks make-driven ORFS stages
 │   └── models.ts              # Zod result types; toSnakeCase boundary
 │
 ├── interactive/
@@ -32,14 +33,20 @@ typescript/src/
 ├── tools/
 │   ├── base.ts                # BaseTool: toSnakeCase serialisation, formatResult
 │   ├── index.ts               # Re-exports all tool classes
-│   ├── interactive.ts         # QueryShellTool, ExecShellTool, session management tools
-│   └── report_images.ts       # ListReportImagesTool, ReadReportImageTool, path security
+│   ├── interactive.ts         # QueryShellTool, ExecShellTool, GrepSessionOutputTool, session tools
+│   ├── report_images.ts       # ListReportImagesTool, ReadReportImageTool, path security
+│   ├── orfs_metrics.ts        # ReadOrfsMetricsTool
+│   ├── qor_check.ts           # Public QoR dashboard client: checkQor, flattenStageMetrics
+│   └── flow_run.ts            # RunOrfsStageTool, GetOrfsJobTool, CancelOrfsJobTool
 │
-└── utils/
-    ├── ansi_decoder.ts        # Strips ANSI escape sequences from PTY output
-    ├── cleanup.ts             # CleanupManager: SIGTERM/SIGINT → graceful shutdown
-    ├── logging.ts             # pino logger factory; LOG_LEVEL / LOG_FORMAT
-    └── path_security.ts       # validatePathSegment, validateSafePathContainment
+├── utils/
+│   ├── ansi_decoder.ts        # Strips ANSI escape sequences from PTY output
+│   ├── cleanup.ts             # CleanupManager: SIGTERM/SIGINT → graceful shutdown
+│   ├── logging.ts             # pino logger factory; LOG_LEVEL / LOG_FORMAT
+│   └── path_security.ts       # validatePathSegment, validateSafePathContainment
+│
+└── flow/
+    └── run_progress.ts        # parseRunProgress, detectCurrentStage, readLogTail
 ```
 
 ---
@@ -138,9 +145,12 @@ Request body is capped at 1 MB. There is no authentication or CORS — see
 
 ## Wire format
 
-All tool responses carry a single `content` item of type `"text"`. The `text` field is a JSON
-string with **snake_case keys** — `toSnakeCase()` in `tools/base.ts` converts the camelCase
-domain models at the boundary. `isError` is never set.
+Ordinary text-only tool responses carry a single `content` item of type `"text"`. The `text` field
+is a JSON string with **snake_case keys** — `toSnakeCase()` in `tools/base.ts` converts the
+camelCase domain models at the boundary. Successful `read_report_image` responses are the
+exception: they return an `image` block followed by a `text` block.
+`isError` is set only for error responses from `read_report_image`.
+Other tool responses signal errors through the JSON payload.
 
 Every result type has a nullable `error: string | null` field (null on success). Blocked commands
 also emit a `message` field alongside `error`. See [docs/API.md](docs/API.md) for full shapes.
@@ -159,4 +169,6 @@ Regenerate after any model or schema change:
 make golden
 ```
 
-CI asserts no fixture drift (`make golden && git diff --exit-code`).
+CI asserts no fixture drift: the `ts-check` job runs `npm run generate:golden` from the
+`typescript/` working directory, then checks only the fixtures with
+`git diff --exit-code -- __tests__/golden/fixtures/`.

@@ -17,6 +17,8 @@ With this MCP server, your AI assistant can:
 - **Manage Sessions** - Create, list, inspect, and terminate multiple physical design sessions.
 - **Track History & Metrics** - Access full command history and performance metrics for analysis.
 - **Visualize Reports** - List and read report images from ORFS runs directly in the chat.
+- **Run ORFS Flows** - Launch, monitor, and cancel make-driven ORFS design stages.
+- **Read ORFS Metrics** - Query per-stage design metrics from ORFS run logs.
 
 ## Demo
 
@@ -173,6 +175,11 @@ Once configured, your AI assistant will have access to the following tools. For 
 - `get_session_metrics`
 - `list_report_images`
 - `read_report_image`
+- `grep_session_output`
+- `read_orfs_metrics`
+- `run_orfs_stage`
+- `get_orfs_job`
+- `cancel_orfs_job`
 
 ## Troubleshooting
 
