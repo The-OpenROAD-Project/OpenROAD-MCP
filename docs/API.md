@@ -43,10 +43,12 @@ make golden
 
 ## Wire Format Conventions
 
-All tool responses carry a single MCP content item of type `"text"` whose `text` field is a JSON
-string. **All JSON keys are snake_case** — the server converts camelCase models at the boundary
-before serialising. `isError` is never set on any tool response; errors are signalled inside the
-JSON payload itself.
+Ordinary text-only tool responses carry a single MCP content item of type `"text"` whose `text`
+field is a JSON string. **All JSON keys are snake_case** — the server converts camelCase models at
+the boundary before serialising. Successful `read_report_image` responses are the exception: they
+return an `image` block followed by a `text` block (see [read_report_image](#read_report_image)).
+`isError` is set only for error responses from `read_report_image`.
+Other tool responses signal errors through the JSON payload.
 
 Every result type has a nullable `error` field:
 
